@@ -1,0 +1,431 @@
+---
+title: "Assignment2Notebook"
+author: "Fengfan"
+date: "07/10/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Packages
+**Install *Tidyverse* **
+`install.packages("tidyverse")`  
+Tidyverse library is a superset of `ggplot2` library  
+  
+**Load library**  
+```{r, results='hide'}
+library(tidyverse)
+```
+  
+**Load Data from packages**
+`Stat2Data` package contains information about 908 Hawks
+`install.packages("Stat2Data")`
+```{r}
+library(Stat2Data)
+data("Hawks")
+
+# Load data from the packages
+hawksSmall<-drop_na(select(Hawks,Age,Day,Month,Year,CaptureTime,Species,Wing,Weight,Tail))
+
+head(hawksSmall)
+```
+
+### 1.1 Type of Variables
+
+`dim()` is used to show the rows of the data.  
+And `head()` is used to show the first 5 rows of the data.
+```{r}
+dim(hawksSmall)
+```
+It shows that the data have 897 rows and 9 columns.
+```{r}
+mode(hawksSmall)
+```
+
+For each of the following variables say whether they continuous, discrete or categorical. Discuss this with your colleagues.  
+  
+1. Month -> Categorical    
+2. Species -> Categorical  
+3. Age -> Discrete  
+4. Wing -> Discrete  
+5. Weight -> Continous  
+
+---
+
+### 1.2 What’s wrong with this plot?
+
+Write down some problems with the plot displayed below.
+
+![](/Users/frankhu/Documents/SCEM/firstRProject/img/2-1.2.png)
+
+**Problems**  
+1. It doesn't show the name of the X and Y axes.  
+2. The value of weight varies from 0 to 2000, the range is too big which cause the size range big.
+
+
+### 1.3 Generate a histogram
+
+Next use a combination of the functions `ggplot()` and geom_histogram to create a histogram plot of the weights of the Hawks within the hawksSmall data frame with bin widths of 100 grams. Your result should look something like this:
+
+![](/Users/frankhu/Documents/SCEM/firstRProject/img/2-1.3.png)
+Codes here:  
+```{r}
+# aes() are used to draw selected features of the data.
+# Assign the binwidth argument to specify the binwidth of the histogram.
+hawks_histogram <- ggplot(hawksSmall, aes(Weight)) + geom_histogram(binwidth = 100)
+# Here we use labs() to rename the label.
+hawks_histogram + labs(x="Weight (gm)", y="Count")
+```
+
+**Describe the aesthetic used within this plot**.  
+
+Weight are used in this plot.
+
+**Which term best describes the shape of the data distribution of Hawk weights: “Unimodal”, “Bimodal” or “Trimodal”?**
+
+Answer: **Bimodal**
+
+### 1.4 Generate a density plot
+
+```{r, include=FALSE}
+# Set global theme
+theme_set(theme_light())
+```
+
+Use a combination of the functions ggplot() and geom_density() to create a density plot of the tail lengths of the Hawks within the hawksSmall data frame.  
+
+```{r}
+hawks_density <- ggplot(hawksSmall, aes(Tail)) + geom_density()
+hawks_density + labs(x="Tail(mm)", y="Density")
+```
+Recreate your plot with the argument adjust = 0.5 and adjust = 1. Describe the role played by the adjust argument within the geom_density() function. How many modes does the data distribution of Hawk tail lengths have?
+
+Answer: **3 modes**
+
+```{r}
+# The default value of adjust is 1, change it to 0.5
+hawks_density <- ggplot(hawksSmall, aes(Tail)) + geom_density(adjust=0.5)
+hawks_density + labs(x="Tail(mm)", y="Density")
+```
+
+Create the following plots for yourself:
+
+![](/Users/frankhu/Documents/SCEM/firstRProject/img/2-1.42.png)
+```{r}
+ggplot(hawksSmall, aes(Tail, colour=Species)) + geom_density() + labs(x="Tail(mm)", y="Density")
+```
+
+![](/Users/frankhu/Documents/SCEM/firstRProject/img/2-1.43.png)
+
+```{r}
+ggplot(hawksSmall, aes(Tail, Species, fill=Species)) + geom_violin() + labs(x="Tail(mm)", y="Species")
+```
+
+### 1.5 Scatter plots
+![](/Users/frankhu/Documents/SCEM/firstRProject/img/2-1.5.png)
+How many aesthetics are present within the following plot? -> **X, Y, color, glyphs**  
+What are the [glyphs](https://en.wikipedia.org/wiki/Glyph_(data_visualization)) within this plot? -> **Square, Circle, Triangle**
+
+```{r}
+ggplot(hawksSmall, aes(Tail, Weight, color=Species, shape=Species)) + geom_point()
+```
+
+### 1.6 Trend lines and facet wraps
+
+Generate the following plot using the ggplot(), geom_point(), geom_smooth() and facet_wrap() functions.  
+
+![](/Users/frankhu/Documents/SCEM/firstRProject/img/2-1.6.png)
+```{r}
+ggplot(hawksSmall, aes(Tail, Weight, color=Species)) + geom_point() + geom_smooth(method=lm) + facet_wrap(vars(Species), scales="free")
+```
+
+What are the visual cues being used within this plot? Based on the above plot, what can we say about the relationship between the weight of the hawks and their tail lengths?  
+
+As an additional challenge, if you have time, you could try adding an annotation to your plot which highlights the weight of the heaviest hawk in the data set.  
+
+
+**References**
+
+[`vars()`](https://ggplot2.tidyverse.org/reference/vars.html)  
+It's to takes inputs to be evaluated in the context of a dataset. The results (the vectors that the variable represents or the results of the expressions) are used to form faceting groups.  
+
+[`geom_smooth()`](https://ggplot2.tidyverse.org/reference/geom_smooth.html?q=geom%20_%20smooth#arguments)  
+Aids the eye in seeing patterns in the presence of overplotting. `method` arguments are used to select the smoothing function.
+
+---
+
+## 2.Data wrangling
+
+### 2.1 Select and filter functions  
+
+Use a combination of the select() and filter() functions to generate a data frame called “hSF” which is a sub-table of the original Hawks data frame with the following characteristics:  
+
+1. Your data frame should include the columns:  
+  a) “Wing”  
+  b) “Weight”  
+  c) “Tail”
+
+  
+2. Your data frame should contain a row for every hawk such that:  
+  a) They belong to the species of Red-Tailed hawks  
+  b) They have weight at least 1kg  
+  
+```{r}
+hSF <- Hawks %>% filter(Species=="RT" & Weight >= 1000) %>% select(Wing, Weight, Tail)
+dim(hSF)
+```
+How many variables does the dataframe hSF have? What would you say to communicate this information to a Machine Learning practitioner?  
+
+Answer: **Three. Features.**
+
+How many examples does the dataframe hSF have? How many observations? How many cases?  
+
+Answer: **398 records.**
+
+### 2.2 The arrange function
+
+Use the arrange() function to sort the hSF data frame created in the previous section so that the rows appear in order of increasing wing span.  
+
+```{r}
+hSF <- hSF %>% arrange(Wing)
+head(hSF)
+```
+### 2.3 Join and rename functions
+
+The species of Hawks within the data frame have been indicated via a two letter code. The correspondence between these codes and the full names is given by the following data frame.  
+
+Recreate the above data frame containing the correspondence between codes and the full species names and give your data frame an appropriate name.  
+
+```{r}
+name_map <- data.frame(species_code=c("CH", "RT", "SS"), species_name_full=c("Cooper's", "Red-tailed", "Sharp-shinned"))
+name_map
+```
+
+Use a combination of the functions left_join(), the rename() and the `select()` functions to create a new data frame called “hawksFullName” which is the same as the “Hawks” data frame except that the Species column contains the full names rather than the two letter codes.  
+
+```{r}
+hawksFullName <- Hawks %>% left_join(name_map, by=c("Species"="species_code")) %>% select(!Species) %>% rename(Species=species_name_full)
+```
+Use a combination of the head() and select() functions to print out the top seven rows of the columns “Species”, “Wing” and “Weight” of the data frame called “hawksFullName”. Do this without modifying the data frame you just created.  
+
+```{r}
+hawksFullName %>% select("Species", "Wing", "Weight") %>% head(7)
+```
+
+Does it matter what type of join function you use here?  
+In what situations would it make a difference?  
+
+Answer: **Absolutely not, if there are na values in both data frame, the result will be different.**
+
+### 2.4 The mutate function
+
+Suppose that the fictitious “Healthy Hawks Society” has proposed a new measure called the “bird BMI” which attempts to measure mass of a hawk standardized by their wing span. The bird BMI is equal to the weight of the hawk (in grams) divided by their wing span (in millimeters) squared. That is,  
+
+$$Bird-BMI := 1000 × Weight/Wing-span^2.$$
+
+Use the mutate(), select() and arrange() functions to create a new data frame called “hawksWithBMI” which has the same number of rows as the original Hawks data frame but only two columns - one with their Species and one with their “bird BMI”. The rows should appear in descending order of “bird BMI”. The top 8 rows of your data frame should look something like this:  
+
+```{r}
+hawksWithBMI <- Hawks %>% mutate(bird_BMI=1000*Weight/(Wing)**2) %>% select(Species, bird_BMI) %>% arrange(desc(bird_BMI))
+```
+
+Use the filter() function to remove those cases where the bird BMI exceeds 100 from your data frame. Then generate a violin plot of your data which shows the distribution of “bird BMIs” broken down by species.  
+
+```{r}
+ggplot(hawksWithBMI %>% filter(bird_BMI<=100), aes(bird_BMI, Species, fill=Species)) + geom_violin() + labs(x="Bird BMI")
+```
+
+### 2.5 Summarize and group-by functions
+
+Using the dataframe “hawksFullName”, from problem 3 above, in combination with the summarize() and the groupby functions, create a summary table, broken down by Hawk species, which contains the following summary quantities:
+
+1. The number of rows;
+2. The mean average wing span in centimeters;
+3. The median wing span in centimeters;
+4. The trimmed mean average wing span in centimeters (trim=0.1);  
+5. The mean average of the ratio between wing span and tail length.
+
+```{r}
+hawksFullName %>% group_by(Species) %>% summarise(num_rows=n(), mn_wing=mean(Wing, na.rm=TRUE), md_wing=median(Wing, na.rm=TRUE), mean(Wing, trim=0.1, na.rm=TRUE), mean(Wing/Tail, na.rm=TRUE))
+```
+
+Next create a summary table of the following form: Your summary table will show the number of missing values, broken down by species, for the columns Wing, Weight, Culmen, Hallux, Tail, StandardTail, Tarsus and Crop. You can complete this task by combining the select(), group_by(), summarize(), across(), everything(), sum() and is.na() functions.  
+
+```{r}
+hawksFullName %>% group_by(Species) %>% summarise(across(c(Wing, Weight, Culmen, Hallux, Tail, StandardTail, Tarsus, Crop), ~sum(is.na(.x))))
+```
+
+Question:  
+[What is '`' used for?](https://purrr.tidyverse.org/articles/other-langs.html)  
+[What does '.x' mean?](https://www.reddit.com/r/Rlanguage/comments/hcp4j7/what_does_x_and_p_mean_when_writing_functions/)  
+
+>Now onto the tilde ~. When using purrr it's used to make anonymous functions easier to write. Using your example these three pieces of code do the exact same thing, but one is less typing:  
+every(1:3, function(x) x > 1)  
+every(1:3, function(.x) .x > 1)  
+every(1:3, ~ .x > 1)  
+.x just stands for the vector you're inputting  
+
+---
+
+## 3. Exploratory data analysis
+
+### 3.1 Combining location estimators with the summarise function
+
+Use a combination of the summarise(), mean() and median() to compute the sample mean, sample median and trimmed sample mean (with q = 0.1) of the Hawk’s wing length and Hawk’s weight.  
+
+```{r}
+Hawks %>% summarize(Wing_mean=mean(Wing, na.rm=TRUE), Wing_t_mean=mean(Wing, trim=0.1, na.rm=TRUE), Wing_med=median(Wing, na.rm=TRUE), Weight_mean=mean(Weight, na.rm=TRUE), Weight_t_mean=mean(Weight, trim=0.1, na.rm=TRUE), Weight_med=median(Weight, na.rm=TRUE))
+```
+Combine with the group_by() function to obtain a break down by species.  
+
+```{r}
+Hawks %>% group_by(Species) %>% summarize(Wing_mean=mean(Wing, na.rm=TRUE), Wing_t_mean=mean(Wing, trim=0.1, na.rm=TRUE), Wing_med=median(Wing, na.rm=TRUE), Weight_mean=mean(Weight, na.rm=TRUE), Weight_t_mean=mean(Weight, trim=0.1, na.rm=TRUE), Weight_med=median(Weight, na.rm=TRUE))
+```
+
+### 3.2 Location and dispersion estimatiors under linear transformations
+
+![](/Users/frankhu/Documents/SCEM/firstRProject/img/2-3.2.png)
+$$\hat\mu=a\mu, \hat{Var}=a^2Var$$
+
+### 3.3 Robustness of location estimators
+
+In this exercise we shall investigate the robustness of several location estimators: The sample mean, sample median and trimmed mean.  
+  
+We begin by extracting a vector called “hal” consisting of the talon lengths of all the hawks with any missing values removed.  
+
+```{r}
+hal<-Hawks$Hallux # Extract the vector of hallux lengths
+hal<-hal[!is.na(hal)] # Remove any nans
+```
+
+To investigate the effect of outliers on estimates of location we generate a new vector called “corrupted_hall” with 10 outliers each of value 100 created as follows:  
+
+```{r}
+outlier_val<-100
+num_outliers<-10
+corrupted_hal<-c(hal,rep(outlier_val,times=num_outliers))
+```
+
+We can then compute the mean of the original sample and the corrupted sample as follows.  
+
+```{r}
+mean(hal)
+```
+
+```{r}
+mean(corrupted_hal)
+```
+
+Now let’s investigate what happens as the number of outliers changes from 0 to 1000. The code below generates a vector called “means_vect” which gives the sample means of corrupted samples with different numbers of outliers. More precisely, means_vect is a vector of length 1001 with the i-th entry equal to the mean of a sample with i − 1 outliers.  
+
+```{r}
+num_outliers_vect<-seq(0,1000)
+means_vect<-c()
+
+for(num_outliers in num_outliers_vect){
+  corrupted_hal<-c(hal,rep(outlier_val,times=num_outliers))
+  means_vect<-c(means_vect,mean(corrupted_hal))
+}
+
+length(means_vect)
+```
+
+Copy and modify the above code to create an additional vector called “medians_vect” of length 1001 with the i-th entry equal to the median of a sample “corrupted_hal” with i − 1 outliers.  
+
+```{r}
+medians_vect <- c()
+
+for(num_outliers in num_outliers_vect) {
+  corrupted_hal <- c(hal, rep(outlier_val, times=num_outliers))
+  medians_vect <- c(medians_vect, median(corrupted_hal))
+}
+
+length(medians_vect)
+```
+
+Amend the code further to add an additional vector called “t_means_vect” of length 1001 with the i-th entry equal to the trimmed mean of a sample with i−1 outliers, where the trimmed mean has a trim fraction q = 0.1.  
+
+```{r}
+t_means_vect <- c()
+
+for(num_outliers in num_outliers_vect) {
+  corrupted_hal <- c(hal, rep(outlier_val, times=num_outliers))
+  t_means_vect <- c(t_means_vect, mean(corrupted_hal, trim = 0.1))
+}
+
+length(t_means_vect)
+```
+
+You should now have four vectors: “num_outliers_vect”, “means_vect”, “medians_vect” and “t_means_vect”. Combine these vectors into a data frame with the following code.  
+
+```{r}
+df_means_medians <- data.frame(num_outliers=num_outliers_vect,mean=means_vect,t_mean=t_means_vect,median=medians_vect)
+```
+
+Now use the code below to reshape and plot the data. The function pivot_longer() below is used to
+reshape the data. Don’t worry if this operation is unclear at this stage. Its use will be explained soon.  
+
+```{r}
+df_means_medians%>%
+  pivot_longer(!num_outliers, names_to = "Estimator", values_to = "Value")%>%
+  ggplot(aes(x=num_outliers,color=Estimator,linetype=Estimator,y=Value))+
+  geom_line()+xlab("Number of outliers")
+```
+### 3.4 Box plots and outliers
+
+Use the functions ggplot() and geom_boxplot() to create a box plot which summarises the distribution of hawk weights broken down by species. 
+
+```{r}
+ggplot(Hawks, aes(Species, Weight)) + geom_boxplot()
+```
+
+Suppose we have a sample X1, · · · , Xn. Let q25 denote the 0.25-quantile of the sample and let q75 denote the 0.75-quantile of the sample. We can then define the interquartile range, denoted IQR by `IQR := q75 − q25`. In the context of boxplots and outlier Xi is any numerical value such that the following holds if either of the following holds:  
+$$X_i < q25 - 1.5 \times IQR$$
+$$X_i > q75 + 1.5 \times IQR$$
+
+Create a function called “num_outliers” which computes the number of outliers within a sample (with missing values excluded).  
+
+Now combine your function num_outliers() with the functions `group_by()` and `summarise()` to com- pute the number of outlier for the three samples of hawk weights broken down by specied.  
+
+```{r}
+
+# num_outliers <- function(.data, feature) {
+#   q25 <-quantile(.data[feature], 0.25, na.rm=TRUE)
+#   q75 <-quantile(.data[feature], 0.75, na.rm=TRUE)
+#   iq_range <- q75 - q25
+#   outliers <- .data[feature][feature > q75+1.5*iq_range | feature < q25-1.5*iq_range | is.na(feature)]
+#   return (sum(is.na(.data[feature]))+nrow(outliers))
+# }
+
+
+num_outliers <- function(feature) {
+  q25 <-quantile(feature, 0.25, na.rm=TRUE)
+  q75 <-quantile(feature, 0.75, na.rm=TRUE)
+  iq_range <- q75 - q25
+  outliers <- feature[feature > q75+1.5*iq_range | feature < q25-1.5*iq_range ]
+  return (sum(is.na(feature))+length(outliers))
+}
+```
+```{r}
+ch_hawks <- Hawks %>% filter(Species=="CH")
+ch_weight <- ch_hawks["Weight"]
+
+q25 <- quantile(ch_weight, 0.25, na.rm=TRUE)
+q75 <- quantile(ch_weight, 0.75, na.rm=TRUE)
+iq_range <- q75 - q25
+outliers <- ch_weight[ch_weight < q25-1.5*iq_range | ch_weight > q75+1.5*iq_range]
+```
+
+```{r}
+Hawks %>% group_by(Species) %>% summarise(num_outliers_weight=num_outliers(Weight))
+```
+
+
+### 3.5 Covariance and correlation under linear transformations
+
+
+![](/Users/frankhu/Documents/SCEM/firstRProject/img/2-3.5.png)
+**Answer:** $\hat\rho_{X, Y}=a^2\rho_{X,Y}$
+

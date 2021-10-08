@@ -1,0 +1,39 @@
+---
+title: "MyFirstRMarkdown"
+author: "Frank"
+date: "29/09/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+x <- seq(0, 20, 0.01)
+y <- sin(x)
+
+sin_df <- data.frame(x, y)
+```
+
+```{r}
+head(sin_df, 3)
+```
+
+### Introducing a plot
+A plot of $y=\sin(x)$
+```{r}
+plot(x, y)
+```
+
+```{r}
+library("tidyverse")
+```
+
+```{r}
+f <- function(a, b) {
+  return (a^2 + b)
+}
+
+3 %>% f(1)
+```
