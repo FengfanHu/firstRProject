@@ -1,0 +1,425 @@
+---
+title: "Assignment3"
+author: "Fengfan"
+date: "13/10/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## 2. Tidy data and iteration
+
+### 2.1 Missing data and iteration
+
+Load library
+```{r}
+library(tidyverse)
+```
+
+The following function performs imputation by mean.
+
+```{r}
+impute_by_mean <- function(x) {
+  mu <- mean(x, na.rm=1)
+  impute_f <- function(z) {
+    if (is.na(z)) {
+      return (mu)
+    } else {
+      return (z)
+    }
+  }
+  
+  return (map_dbl(x, impute_f))
+}
+```
+
+Using the function to imput the missing value with mean.
+
+```{r}
+v <- c(1,2,NA,4)
+impute_by_mean(v)
+```
+
+Create a function called *impute_by_median* which imputes missing values based on the median of the sample rather than mean.
+
+```{r}
+impute_by_median <- function(x) {
+  med <- median(x, na.rm=1)
+  impute_f <- function(z) {
+    if (is.na(z)) {
+      return (med)
+    } else {
+      return (z)
+    }
+  }
+  return (map_dbl(x, impute_f))
+}
+```
+
+Test function on the following sample vector:
+```{r}
+v <- c(1,2,NA,4)
+impute_by_median(v)
+```
+
+Generate a data frame with two variables x and y.
+
+```{r}
+x <- seq(0, 10, 0.1)
+y <- x*5 + 1
+df_xy <- data.frame(x, y)
+
+df_xy %>% head(5)
+```
+
+The `map2()` funtion is similar to the `map()` function but iterates over two variables in parallel rather than one. Now add a new column named z which is x+y.
+
+```{r}
+df_xy %>% mutate(z=map2_dbl(x, y, ~ .x+.y)) %>% head(5)
+```
+
+```{r}
+somtimes_missing <- function(index, value) {
+  if (index %% 5 == 0){
+    return (NA)
+  } else {
+    return (value)
+  }
+}
+
+somtimes_missing(14, 25)
+```
+
+```{r}
+somtimes_missing(15, 25)
+```
+
+```{r}
+df_xy_missing <- df_xy %>% mutate(y=map2_dbl(row_number(x), y, somtimes_missing))
+head(df_xy_missing)
+```
+Imputing the missing value from *df_xy_missing* by the median value.
+
+```{r}
+df_xy_imputed <- df_xy_missing %>% mutate(y=impute_by_median(y))
+
+head(df_xy_imputed)
+```
+```{r}
+df_xy <- df_xy %>% mutate(source="original")
+
+df_xy_missing <- df_xy_missing %>% mutate(source="corrupted")
+
+df_xy_imputed <- df_xy_imputed %>% mutate(source="imputed")
+
+df_combined <- rbind(df_xy, df_xy_missing, df_xy_imputed)
+head(df_combined)
+```
+```{r}
+ggplot(df_combined, aes(x=x,y=y,color=source))+geom_point()+facet_wrap(~source)+geom_smooth(method="lm")
+```
+Do the imputed values $y_{i}^{'}$ give reasonable estimates of the true values $y_{i}$?
+
+``` 
+Yes, cause the gradient of the new line and the original line is almost the same.
+
+But it really depends on the case, here the example is just figures with no extra info, so I think it's reasonable to imput the missing data in this way, cause we can't fix the missing value prefectly, missing values are unpredicted.
+```
+
+### 2.2 Tidying data with pivot functions
+
+Read in data from a spreadsheet and apply some data wrangling tasks to tidy that data.
+
+```{r}
+# install.packages("readxl")
+```
+
+```{r}
+library(readxl)
+
+folder_path <- "/Users/frankhu/Documents/SCEM/firstRProject/resources/"
+file_name <- "HockeyLeague.xlsx"
+file_path <- paste(folder_path, file_name, sep="")
+wins_data_frame <- read_excel(file_path, sheet="Wins")
+```
+
+Inspect the first 3 rows of the first five columns:
+
+```{r}
+wins_data_frame %>% select(1:5) %>% head(3)
+```
+
+A cell value of the form "a of b" means that a games were won out of a total of b for that season.  
+
+Is this tidy data?
+
+```
+Yes!
+
+Properties of tidy data:
+- row: correspond to a specific and unique observation representing a similar sort of thing.
+- column: correspond to single variables with the same sort of value for each observation.
+
+```
+
+Now apply your data wrangling skills to transform the “wins_data_frame” data frame object into a data frame called “wins_tidy” which contains the same information but has just four columns entitled “Team”, “Year”, “Wins”, “Total”. The “Team” column should contain the team name, the “Year” column should contain the year, the “Wins” column should contain the number of wins for that season and the “Total” column the total number of games for that season. The first column should be of character type and the remaining columns should be of integer type. You can do this by combining the following functions: rename(), pivot_longer(), mutate() and separate().  
+
+```{r}
+wins_tidy <- wins_data_frame %>% rename(Team="...1") %>% pivot_longer(cols=!Team, names_to = "Year", values_to = "Score") %>% separate(col = Score, into=c("Wins", "Total"), sep = "of", convert = TRUE)
+wins_tidy
+```
+Check the shape of your data frame and the first five rows:
+
+```{r}
+wins_tidy %>% dim()
+```
+
+```{r}
+wins_tidy %>% head(5)
+```
+
+```{r}
+losses_data_frame <- read_excel(file_path, sheet="Losses")
+```
+```{r}
+losses_tidy <- losses_data_frame %>% rename(Team="...1") %>% pivot_longer(cols=!Team, names_to = "Year", values_to = "Score") %>% separate(col = Score, into=c("Losses", "Total"), sep = "of", convert = TRUE)
+losses_tidy
+```
+You may notice that the number of wins plus the number of losses for a given team, in a given year does not add up to the total. This is because some of the games are neither wins nor losses but draws. That is, for a given year the number of draws is equal to the total number of games minus the sum of the wins and losses.  
+
+Now combine your two data frames, “wins_tidy” and “losses_tidy”, into a single data frame entitled “hockey_df” which has 248 rows and 9 columns: A “Team” column which gives the name of the team as a character, the “Year” column which gives the season year, the “Wins” column which gives the number of wins for that team in the given year, the “Losses” column which gives the number of losses for that team in the given year and the “Draws” column which gives the number of draws for that team in the given year, the “Wins_rt” which gives the wins as a proportion of the total number of games (ie. Wins/Total) and similarly the “Losses_rt” and the “Draws_rt” which gives the losses and draws as a proportion of the total, respectively. To do this you can make use of the mutate() function. You may also want to utilise the across() function for a slightly neater solution.  
+
+```{r}
+hockey_df <- wins_tidy %>% inner_join(losses_tidy) %>% mutate(Draws=Total-Wins-Losses, Wins_rt=Wins/Total, Losses_rt=Losses/Total, Draws_rt=Draws/Total)
+```
+
+```{r}
+hockey_df %>% head(5)
+```
+
+To conclude this task generate a summary data frame which displays, for each team, the median win rate, the mean win rate, the median loss rate, the mean loss rate, the median draw rate and the mean draw rate. The number of rows in your summary should equal the number of teams. These should be sorted in descending order or median win rate. You may want to make use of the following functions: select(), group_by(), across(), arrange().  
+```{r}
+unnecessary_cols <- c("Wins", "Losses", "Draws", "Team")
+hockey_df %>% select(one_of(unnecessary_cols)) %>% group_by(Team) %>% summarise(across(everything(), list(mean=mean, median=median), .names="{.col}_{.fn}")) %>% arrange(desc(Wins_median)) # Ordering by decent median value of wins.
+```
+
+### 2.3 Most correlated variables (*)
+
+This data wrangling task is slightly more challenging. You may want to return to this task once you have completed the unstarred questions in sections 3 and 4 below.  
+
+The objective is to investigate, for each numerical variable within a data set, which other numerical variables have the largest correlation (in absolute value).  
+
+In lecture 6 we introduced the following function called “max_cor_var”. The function entitled “max_cor_var” takes as input a data frame “df” and a column name “col_name”. It then extracts the variable with name col_name and determines which other numerical variables within the data set have the highest correlation (in absolute value) with that variable. It then returns a data frame containing the name of the variable “var_name” and the corresponding correlation “cor”. Begin by making sure you understand the structure of the function.
+
+```
+select_if(): This verb is analogous to summarise_if() and mutate_if() in that it lets you use a predicate on the columns of a data frame. Only those columns for which the predicate returns TRUE will be selected.
+```
+
+```{r}
+max_cor_var<-function(df,col_name){
+# function to determine the variable with maximal correlation
+v_col<-df%>%select(all_of(col_name)) # extract variable based on col_name
+  df_num<-df%>%
+    select_if(is.numeric)%>%
+    select(-all_of(col_name))
+  # select all numeric variables excluding col_name
+correlations<-unlist(map(df_num, function(x){cor(x,v_col,use="complete.obs")}))
+  # compute correlations with all other numeric variables
+max_abs_cor_var<-names(which(abs(correlations)==max(abs(correlations)))) # extract the variable name 
+cor<-as.double(correlations[max_abs_cor_var])
+# compute the correlation
+  
+  return(data.frame(var_name=max_abs_cor_var,cor=cor))
+  # return dataframe
+}
+```
+
+```{r}
+library(palmerpenguins)
+```
+
+Next generate a new function called “top_correlates_by_var” which takes input a data frame “df” and outputs a data frame with a single row. The column names of this output data frame should coincide with the names of the numerical columns within the input dataframe “df”. For each column name, the value should be equal to variable name corresponding to the numerical variable which has the highest level of correlation (in absolute value) to the variable with that column name, but is not equal to it.  
+
+```{r}
+top_correlates_by_var <- function(df) {
+  numeric_col_names <- df %>% select_if(is.numeric) %>% colnames
+  dfs <- numeric_col_names %>% map(~max_cor_var(df, .x))
+  # Get the top correlate values.
+  top_correlates_values <- dfs %>% map(~.x$var_name)
+  res <- list()
+  for (i in 1:length(numeric_col_names)) {
+    res[numeric_col_names[i]] = top_correlates_values[i]
+  }
+  return (tibble(data.frame(res)))
+}
+```
+
+You can test your function as follows. By using the Palmer penguins data set you should obtain the following output.
+
+```{r}
+penguins %>% top_correlates_by_var()
+```
+Next use a combination of the functions group_by(), nest(), mutate(), select(), unnest() together with your new function top_correlates_by_var() to determine those variables with highest correlation, broken down by species of penguin. Your results should be as follows.  
+
+```{r}
+penguins %>%
+  group_by(species) %>%
+  nest() %>%
+  mutate(max_cor=map(data, ~top_correlates_by_var(.x))) %>%
+  select(-data) %>%
+  unnest()
+```
+
+## 3. Elementary set theory
+
+Remember that a set is just a collection of objects. All that matters for the identity of a set is the objects it contains. In particular, the elements within the set are unordered, so for example the set {1, 2, 3} is exactly the same as the set {3, 2, 1}. In addition, since sets are just collections of objects, each object can only be either included or excluded and multiplicities do not change the nature of the set. In particular, the set {1,2,2,2,3,3} is exactly the same as the set A = {1,2,3}. In general there is no concept of “position” within a set, unlike a vector or matrix.  
+
+### 3.1 Rolling a dice
+
+Let’s suppose we role a dice. The set of possible outcomes is Ω := {1, 2, 3, 4, 5, 6} corresponding to the different sides of the dice which could land face up.  
+
+Let’s introduce events A, B defined by A := {1,2,3}, B := {2,4,6}, C := {4,5,6}.
+
+**Unions**  
+
+What is $A\cup B$?  
+```
+{1,2,3,4,6}
+```
+
+What is $A\cup C$?  
+```
+{1,2,3,4,5,6}
+```
+
+**Intersection**  
+
+What is $A\cap B$?  
+```
+{2}
+```
+
+What is $A\cap C$?  
+$\emptyset$  
+
+**Complements**  
+What is A\B ? What's A\C?  
+```
+# A\B -> Complement of B in A
+A\B = {1,2,3} - {2} = {1,3}
+
+# A\C -> Complement of C in A
+A\C = {1,2,3} - {} = {1,2,3}
+```  
+
+**Disjointness**  
+Are A and B disjoint?  
+No, cause $A\cap B \neq \emptyset$
+
+
+Are A and C disjoint?  
+Yes, cause $A\cap C = \emptyset$  
+
+**Partitions**  
+Write down a partition of $\Omega:={1,2,3,4,5,6}$ consisting of two sets.  
+```
+{1,2,3}, {4,5,6}
+```
+Write down another partition of $\Omega$ containing of three sets. 
+```
+{1,2}, {3,4}, {5,6}
+```
+
+###  3.2 Complements, subsets and De Morgan's laws   
+
+Let Ω be a sample space. Recall that for an event A⊆Ω the complement $A^c$ ≡Ω\A:={ω∈Ω : ω∈/A}. Take a pair of events A ⊆ Ω and B ⊆ Ω.
+
+**Complements**  
+Can you give an expression for $(A^c)^c$ without using the notion of a complement?  
+```
+The complement of the complement is just the set itself, so it should be A.
+```
+What's is $\Omega^c$?  
+```
+I really don't know, I think the emptyset is a subset of the sample space. So the complement of Omega may be nothing (not emptyset).
+```
+
+**Intersections**  
+Shows that $(A\cap B)^c=A^c\cup B^c$
+
+Let's suppose we have a sequence of events $A_1, A_2, ..., A_k \subseteq \Omega$. Can you write out an expression for $(\bigcap_{k=1}^{K}A_k)^c$ in terms of unions and complements?  
+
+Answer: $(\bigcup_{k=1}^{K}A_k^c)$
+
+**Union**  
+Shows that $(A\cup B)^c=A^c\cap B^c$
+
+Let's suppose we have a sequence of events $A_1, A_2, ..., A_k \subseteq \Omega$. Can you write out an expression for $(\bigcup_{k=1}^{K}A_k)^c$ in terms of intersections and complements?  
+
+
+Answer: $(\bigcap_{k=1}^{K}A_k^c)$  
+
+
+**De Morgans' laws:** $(A\cup B)^c=A^c\cap B^c, (A\cap B)^c=A^c\cup B^c$  
+
+### 3.3 Cardinality and the set of all subsets
+
+Suppose that $\Omega = \{\omega_1,\omega_2, ..., \omega_k\}$ contains K elements for some natural number $K\in \mathbb N$. Hence K has cardinality K.  
+
+Let $\varepsilon:=\{A \subseteq \Omega\}$ be the set of all subsets. Give a formula for the cardinality of $\varepsilon$ in terms of K.  
+Answer:  
+- One element: $C_{k}^1$  
+
+- Two elements: $C_{k}^2$  
+
+- n elements: $C_{k}^n$  
+
+- The sum of them: $2^k$  
+  For each subset, it can in or not in A.  
+  
+### 3.4 Disjointness and partitions  
+
+Suppose we have evnets $A_1, A_2, A_3, A_4$ all subsets of $\Omega$.  
+Define events $S_1, S_2, S_3, S_4$ all subsets of $\Omega$ by $S_1:=A_1,S_2:=A_2/A_1,S_3:=A_3/(A_1\cup A_2), S_4:=A_4/(A_1\cup A_2 \cup A_3)$  
+Show that $S_1, S_2, S_3, S_4$ from a partition of $A_1\cup A_2\cup A_3\cup A_4$.  
+
+**Answer**: Cause $A_1, A_2, A_3, A_4$ consist of the whole sample space $Omega$, so $S_1, S_2, S_3, S_4$ are disjointed and consist of the whole sample space. Thus they are partitions of $\Omega$.  
+
+### 3.5 Uncountable infinites (**)  
+
+Show that the set of numbers Ω := [0, 1] is uncountably infinite.  
+
+**Answer:** We know that $\mathbb N$ are countable infinite.
+
+[Reference](https://en.wikipedia.org/wiki/Cantor%27s_diagonal_argument)
+[Reference_video](https://www.youtube.com/watch?v=0HF39OWyl54)
+
+## 4. Introduction to probability  
+
+### 4.1 Probability of a complement  
+
+Prove that if Ω is a sample space, S ⊆ Ω is an event and $S^c$ ≡ Ω \ S is its complement we have
+$$\mathbb P(S^c) = 1 - \mathbb P(S)$$
+**Answer:** According to the probability principle $P(\Omega)=P(S\cup S^c)=1$, thus $P(S^c)=1-P(S)$  
+
+### 4.2 The union bound  
+Having $\mathbb P(\bigcup_{i=1}^{\infty} A_{i})= \Sigma_{i=0}^{\infty} \mathbb P(A_i)$ and $\mathbb P(\bigcup_{i=1}^{\infty}S_i)\le \Sigma_{i=1}^{\infty} \mathbb P(S_i)$, where $S_i$ are not necessarily disjointed.  
+
+Given an example sequences of $A_1, A_2, A_3 ...$ in which $\mathbb P(\bigcup_{i=1}^{\infty}A_i) \neq \Sigma_{i=1}^{\infty} \mathbb P(A_i)$  
+
+**Answer:** Rolling dice, for $A_1=\{1,2,3,4\}$, $A_2=\{5,6\}$, $A_3=\{3,5,6\}$, we know that $P(A_1\cup A_2 \cup A_3)=1$. However, $P(A_1)+P(A_2)+P(A_3)= 2/3 + 1/3 + 1/2 = 3/2$.  
+
+### 4.3 Verifying the rules of probability  
+
+![](/Users/frankhu/Documents/SCEM/firstRProject/img/3-4.3.png)
+**Answer:**  
+
+1. For every $A\in \varepsilon$ , $\mathbb P(A) \ge 0$.  
+2. $\mathbb P(\Omega) = 1$.  
+3. For every countably pair-wise disjoint events $A_1, A_2, ...$, we have $\mathbb P(\bigcup_{i=1}^{\infty} A_{i})= \Sigma_{i=0}^{\infty} \mathbb P(A_i)$, i.e. $P(A+B) = P(A)+ P(B)$  
+
+### 4.4 Rotation invariant measures on [0,1] (***)  
+
+

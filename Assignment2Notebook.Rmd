@@ -3,8 +3,8 @@ title: "Assignment2Notebook"
 author: "Fengfan"
 date: "07/10/2021"
 output:
-  pdf_document: default
   html_document: default
+  pdf_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -48,11 +48,11 @@ mode(hawksSmall)
 
 For each of the following variables say whether they continuous, discrete or categorical. Discuss this with your colleagues.  
   
-1. Month -> Categorical    
+1. Month -> Categorical   [x] Numerical, Discrete
 2. Species -> Categorical  
-3. Age -> Discrete  
-4. Wing -> Discrete  
-5. Weight -> Continous  
+3. Age -> Discrete  [x] Ordinal
+4. Wing -> Discrete  [x] Numerical, Continuous
+5. Weight -> Continous  (Numerical)
 
 ---
 
@@ -63,8 +63,9 @@ Write down some problems with the plot displayed below.
 ![](/Users/frankhu/Documents/SCEM/firstRProject/img/2-1.2.png)
 
 **Problems**  
-1. It doesn't show the name of the X and Y axes.  
-2. The value of weight varies from 0 to 2000, the range is too big which cause the size range big.
+1. It doesn't show the name of the X and Y axes.  (Lack of legends and guides.)
+2. The value of weight varies from 0 to 2000, the range is too big which cause the size range big. 
+(Attempts to display too many variables.)
 
 
 ### 1.3 Generate a histogram
@@ -127,7 +128,9 @@ ggplot(hawksSmall, aes(Tail, Species, fill=Species)) + geom_violin() + labs(x="T
 
 ### 1.5 Scatter plots
 ![](/Users/frankhu/Documents/SCEM/firstRProject/img/2-1.5.png)
-How many aesthetics are present within the following plot? -> **X, Y, color, glyphs**  
+How many aesthetics are present within the following plot? -> **X, Y, color, glyphs**
+[Answer: 1. The tail length is mapped to the horizontal position. 2. The weight is mapped to the vertical positions. 3. The species is mapped to the colour. 4. The species is mapped to shape.]  
+
 What are the [glyphs](https://en.wikipedia.org/wiki/Glyph_(data_visualization)) within this plot? -> **Square, Circle, Triangle**
 
 ```{r}
@@ -146,6 +149,23 @@ ggplot(hawksSmall, aes(Tail, Weight, color=Species)) + geom_point() + geom_smoot
 What are the visual cues being used within this plot? Based on the above plot, what can we say about the relationship between the weight of the hawks and their tail lengths?  
 
 As an additional challenge, if you have time, you could try adding an annotation to your plot which highlights the weight of the heaviest hawk in the data set.  
+
+```{r}
+tail_weight_plt<-ggplot(data=hawksSmall,aes(x=Tail,
+                                            y=Weight,color=Species))+
+  geom_point()+xlab("Tail  (mm)")+ylab("Weight (gm)")+
+  geom_smooth(method="lm")+theme_bw()+facet_wrap(~Species,scales = "free")
+tail_weight_plt
+
+max_weight<-max(hawksSmall$Weight)
+label=paste("The heaviest hawk \n weights ", as.character(max_weight/1000),"kg",sep="")
+
+tail_weight_plt+geom_curve(x=170,xend=190,y=1900,yend=2020,
+                           arrow=arrow(length=unit(0.1,"cm")),
+             curvature = -0.1,color="black")+
+  geom_text(x=180,y=1800,label=label,size=2,color="black")
+```
+
 
 
 **References**
@@ -185,6 +205,10 @@ Answer: **Three. Features.**
 How many examples does the dataframe hSF have? How many observations? How many cases?  
 
 Answer: **398 records.**
+```{r}
+hSF %>% nrow()
+```
+
 
 ### 2.2 The arrange function
 
@@ -233,10 +257,16 @@ Use the mutate(), select() and arrange() functions to create a new data frame ca
 hawksWithBMI <- Hawks %>% mutate(bird_BMI=1000*Weight/(Wing)**2) %>% select(Species, bird_BMI) %>% arrange(desc(bird_BMI))
 ```
 
-Use the filter() function to remove those cases where the bird BMI exceeds 100 from your data frame. Then generate a violin plot of your data which shows the distribution of “bird BMIs” broken down by species.  
+Use the filter() function to remove those cases where the bird BMI exceeds 100 from your data frame. Then generate a violin plot of your data which shows the distribution of “bird BMIs” broken down by species. 
 
 ```{r}
 ggplot(hawksWithBMI %>% filter(bird_BMI<=100), aes(bird_BMI, Species, fill=Species)) + geom_violin() + labs(x="Bird BMI")
+```
+
+**IDK**: What's point to scale the x axies by log2?
+
+```{r}
+ggplot(hawksWithBMI %>% filter(bird_BMI<=100), aes(bird_BMI, Species, fill=Species)) + geom_violin() + labs(x="Bird BMI") + scale_x_continuous(trans='log2')
 ```
 
 ### 2.5 Summarize and group-by functions
@@ -259,9 +289,24 @@ Next create a summary table of the following form: Your summary table will show 
 hawksFullName %>% group_by(Species) %>% summarise(across(c(Wing, Weight, Culmen, Hallux, Tail, StandardTail, Tarsus, Crop), ~sum(is.na(.x))))
 ```
 
+```{r}
+hawksFullName %>% group_by(Species) %>% summarise(across(c(Wing, Weight, Culmen, Hallux, Tail, StandardTail, Tarsus, Crop), ~sum(is.na(.x))))
+```
+
+
 Question:  
-[What is '`' used for?](https://purrr.tidyverse.org/articles/other-langs.html)  
+[What is '~' used for?](https://purrr.tidyverse.org/articles/other-langs.html)  
 [What does '.x' mean?](https://www.reddit.com/r/Rlanguage/comments/hcp4j7/what_does_x_and_p_mean_when_writing_functions/)  
+
+For the every() function .x just stands for the vector you're inputting, and .p stands for the predicate function you want to test for. They could just as well be called .stuff and .things.  
+
+Now onto the tilde ~. When using purrr it's used to make anonymous functions easier to write. Using your example these three pieces of code do the exact same thing, but one is less typing:  
+
+```R
+every(1:3, function(x) x > 1)
+every(1:3, function(.x) .x > 1)
+every(1:3, ~ .x > 1)
+```
 
 >Now onto the tilde ~. When using purrr it's used to make anonymous functions easier to write. Using your example these three pieces of code do the exact same thing, but one is less typing:  
 every(1:3, function(x) x > 1)  
@@ -410,14 +455,14 @@ num_outliers <- function(feature) {
   return (sum(is.na(feature))+length(outliers))
 }
 ```
-```{r}
-ch_hawks <- Hawks %>% filter(Species=="CH")
-ch_weight <- ch_hawks["Weight"]
 
-q25 <- quantile(ch_weight, 0.25, na.rm=TRUE)
-q75 <- quantile(ch_weight, 0.75, na.rm=TRUE)
-iq_range <- q75 - q25
-outliers <- ch_weight[ch_weight < q25-1.5*iq_range | ch_weight > q75+1.5*iq_range]
+Answer:  
+```R
+outliers<-function(x){
+q25<-quantile(x,0.25,na.rm=1)
+q75<-quantile(x,0.75,na.rm=1)
+iq_range<-q75-q25 return(x[((x>q75+1.5*iq_range)|(x<q25-1.5*iq_range))&!is.na(x)])
+} num_outliers<-function(x){return(length(outliers(x)))}
 ```
 
 ```{r}
@@ -429,5 +474,5 @@ Hawks %>% group_by(Species) %>% summarise(num_outliers_weight=num_outliers(Weigh
 
 
 ![](/Users/frankhu/Documents/SCEM/firstRProject/img/2-3.5.png)
-**Answer:** $\hat\rho_{X, Y}=a^2\rho_{X,Y}$
+**Answer:** $\hat\rho_{X, Y}=(ac)\cdot\rho_{X,Y}$
 
