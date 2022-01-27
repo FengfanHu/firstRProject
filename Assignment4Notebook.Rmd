@@ -1,0 +1,192 @@
+---
+title: "Assignment 4"
+output: html_notebook
+---
+
+## 1. Bayes theorem  
+$\mathbb P(A|B)=0.72/0.745$  
+
+## 2. Conditional probabilities  
+
+## 3. Sampling with replacement  
+
+$\binom{n}{k}=\frac{n!}{k!(n-k)!}$
+
+Compute the numebr of subset of size 3 from a collection of size 8.  
+
+```{R}
+choose(8,3)
+```
+
+Write a R function called prob_red_spheres() which takes z as an argument and computes the probability that z out of a total of the 35 balls selected are red.  
+
+```{R}
+prob_red_sphere <- function(z) {
+  p_red <- 3/10
+  p_blue <- 1-p_red
+  return (choose(35, z)*(p_red**z)*(p_blue**(35-z)))
+}
+```
+
+```{R}
+prob_red_sphere(20)
+```
+
+Generate a data frame called **prob_by_num_reds
+** with two columns `num_reds` and `prob`. The `num_reds` column should contain number 1 through 35 and the `prob` column should give the associated probability of selecting that many reds out of a total number of 35 selections.  
+
+```{R}
+prob_by_num_reds <- data.frame(num_reds=sequence(35))
+```
+
+```{R}
+# Using tidyverse
+library(tidyverse)
+
+prob_by_num_reds <- prob_by_num_red %>% mutate(prob=prob_red_sphere(num_reds))
+
+prob_by_num_reds %>% head(3)
+```
+```{R}
+ggplot(prob_by_num_reds, aes(x=num_reds, y=prob)) + geom_line() + labs(x="Number of reds", y="Probability") + theme_light()
+```
+
+---
+
+### Simulation
+
+Simulate a random experiment in which we sample with replacement from a collection of 10 objects and repeat this process 35 times.  
+
+```{R}
+sample(10, 35, replace=TRUE)
+```
+
+```{R}
+set.seed(0)
+
+for(i in 1:5) {
+  print(sample(100, 5, replace=FALSE))
+}
+
+print('----')
+# Resetting the random seed every time.
+
+for(i in 1:5) {
+  set.seed(1)
+  print(sample(100, 5, replace=FALSE))
+}
+
+```
+
+```{R}
+num_trials<-1000 # set the number of trials set.seed(0) # set the random seed
+set.seed(0)
+
+sampling_with_replacement_simulation<-data.frame(trial=1:num_trials)%>% mutate(sample_balls=map(.x=trial,~sample(10,35,replace = TRUE)))
+# generate collection of num_trials simulations
+
+sampling_with_replacement_simulation
+```
+
+```{R}
+# Add a new column called nums_reds contains an integer which gives the number of items within the sample for that row which are less than or equal to three.  
+sampling_with_replacement_simulation <- sampling_with_replacement_simulation %>% mutate(num_reds=map_dbl(.x=sample_balls, .f=~sum(.x <= 3)))
+```
+
+Next we shall add a new column called simulation_count to our existing data frame prob_by_num_reds which gives the number of times within our simulation we observed the corresponding number of reds. We can do this as follows:  
+
+```{R}
+num_reds_in_simulation<-sampling_with_replacement_simulation%>%pull(num_reds) # we extract a vector corresponding to the number of reds in each trial
+prob_by_num_reds <- prob_by_num_reds %>% mutate(simulation_count=map_dbl(.x=num_reds,~sum(num_reds_in_simulation==.x))) # add a column which gives the number of trials with a given number of reds
+# count the number of num_reds in the all trials
+```
+
+```{R}
+prob_by_num_reds %>% head()
+```
+
+Next we add a column called expected_count corresponding to the expected number of observed reds in 1000 based upon your probability formula.  
+
+```{R}
+prob_by_num_reds<-prob_by_num_reds%>% mutate(expected_count=num_trials*prob)
+# add a column which gives the expected number of reds # based on the probability formula
+
+prob_by_num_reds %>% head(5)
+```
+
+Finally, create a plot which compares the results of your simulation with the expected count based on your probability formula. The concept of expectation will be discussed in Lecture 11.  
+
+Your result should look something like the plot below. Of course, since this is a random simulation, your result may well look slightly different.  
+
+```{R}
+prob_by_num_reds%>%
+  rename(Simulation=simulation_count,Expected=expected_count)%>%
+  pivot_longer(cols=c("Simulation","Expected"),
+               names_to="Type",values_to="count")%>%
+  ggplot(aes(num_reds,count)) +
+    geom_line(aes(linetype=Type, color=Type)) +
+    scale_linetype_manual(values = c("solid", "dashed"))+
+  theme_bw()+
+  xlab("Number of reds")+
+  ylab("Count")
+```
+
+## 4. Sampling without replacement  
+
+In the last experiment, we have 10 balls of which 3 are reds and 7 are blues. Now we have 100 spheres, including 50 red spheres, 30 blue spheres and 20 green spheres. Suppose we sample 10 spheres from the bag **without** replacement.  
+
+```{R}
+# Set a random seed
+set.seed(0)
+
+# Set number of trials, number of reds, blues and greens and sample size.
+num_trials <- 10000
+num_reds <- 50
+num_blues <- 30
+num_greens <- 20
+sample_size <- 100
+
+sample(100, 10, replace = FALSE)
+```
+
+
+```{R}
+# Simulating sample without placement
+sampling_without_replacement_simulation <- data.frame(trial=1:num_trials) %>% mutate(sample_balls=map(.x=trial,~sample(100, 10, replace=FALSE)))
+
+# Labeling and count number of colors
+sampling_without_replacement_simulation <- sampling_without_replacement_simulation %>% mutate(num_reds=map_dbl(sample_balls, ~sum(.x<=num_reds)), num_blues=map_dbl(sample_balls, ~sum((num_reds<.x) & (.x <= num_reds+num_blues))), num_greens=map_dbl(sample_balls, ~sum((num_reds+num_blues<.x) & (.x<=num_reds+num_blues+num_greens))))
+
+# Compute the minimum number of # of colors
+sampling_without_replacement_simulation <- sampling_without_replacement_simulation %>% mutate(color_missing=pmin(num_reds, num_blues, num_greens)==0)
+
+# Count the number of missing color trial
+prob_missing_simulation <- mean(sampling_without_replacement_simulation %>% pull(color_missing))
+prob_missing_simulation
+```
+
+```{r}
+set.seed(0) # set the random seed
+num_trials<- 20000 # set the number of trials
+n_red<-50
+n_blue<-30
+n_green<-20
+sample_size<-10
+total<-n_red+n_blue+n_green
+sampling_without_replacement_simulation<-data.frame(trial=1:num_trials)%>% mutate(sample_balls=map(.x=trial,~sample(total,sample_size,replace = FALSE)))%>% # simulate without replacement the sampling of 10 balls from a bag of 100
+mutate(num_reds=map_dbl(.x=sample_balls,~sum(.x<=n_red)))%>% mutate(num_blues=map_dbl(.x=sample_balls,~sum((n_red<.x)&(.x<=n_red+n_blue))))%>% mutate(num_greens=map_dbl(.x=sample_balls,~sum((n_red+n_blue<.x)&
+                                                   (.x<=n_red+n_blue+n_green))))%>%
+  mutate(colour_missing=(pmin(num_reds,num_blues,num_greens)==0))
+  # look for missing colours
+prob_missing_simulation<-mean(sampling_without_replacement_simulation%>%
+                                pull(colour_missing))
+prob_missing_simulation
+```
+
+
+```{R}
+sample_space = choose(100, 10)
+events = choose(3, 1)*(1/3*choose(50, 10)+1/3*choose(70, 10)+1/3*choose(80, 10))-choose(3,2)*(1/3*choose(20, 10)+1/3*choose(50, 10)+1/3*choose(30, 10))
+pro_without_placement = events / sample_space
+print(pro_without_placement)
+```

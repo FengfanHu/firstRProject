@@ -158,6 +158,8 @@ Is this tidy data?
 ```
 Yes!
 
+(A) This would not usually be considered as tidy data. Firstly, the number of wins and the total number of games for a given season are contained in the same column, rather than being contained within a single column. Indeed the number of wins for different years are spread across multiple columns. A tidy data format would have a single column containing the number of wins for all of the seasons together with a separate column for the year.
+
 Properties of tidy data:
 - row: correspond to a specific and unique observation representing a similar sort of thing.
 - column: correspond to single variables with the same sort of value for each observation.
@@ -193,6 +195,12 @@ Now combine your two data frames, “wins_tidy” and “losses_tidy”, into a 
 
 ```{r}
 hockey_df <- wins_tidy %>% inner_join(losses_tidy) %>% mutate(Draws=Total-Wins-Losses, Wins_rt=Wins/Total, Losses_rt=Losses/Total, Draws_rt=Draws/Total)
+
+# Answer
+hockey_df<-inner_join(wins_tidy,losses_tidy)%>%
+  mutate(Draws=Total-Wins-Losses)%>%
+  mutate(across(starts_with(c("Wins","Losses","Draws")),~.x/Total,
+                .names="{.col}_rt"))
 ```
 
 ```{r}
@@ -346,6 +354,8 @@ What's is $\Omega^c$?
 I really don't know, I think the emptyset is a subset of the sample space. So the complement of Omega may be nothing (not emptyset).
 ```
 
+!!!!!!IDK $\Omega^c = \emptyset$
+
 **Intersections**  
 Shows that $(A\cap B)^c=A^c\cup B^c$
 
@@ -422,4 +432,4 @@ Given an example sequences of $A_1, A_2, A_3 ...$ in which $\mathbb P(\bigcup_{i
 
 ### 4.4 Rotation invariant measures on [0,1] (***)  
 
-
+!!!!!!!!IDK

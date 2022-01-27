@@ -1,0 +1,87 @@
+---
+title: "Assignment10"
+output: html_notebook
+---
+
+```{r}
+library(tidyverse)
+library(QSARdata)
+data(MeltingPoint)
+```
+
+```{r}
+mp_data_total<-MP_Descriptors %>% add_column(melting_pt=MP_Outcome)
+
+cat("Column #:", length(mp_data_total %>% colnames()), "\n")
+cat("Row #:", mp_data_total %>% nrow())
+```
+
+train-validate-test split
+
+```{r}
+num_total <- mp_data_total %>% nrow()
+num_trains <- floor(num_total*0.5)
+num_validate <- floor(num_total*0.25)
+num_test <- num_total - num_trains - num_validate
+
+set.seed(0)
+
+train_inds <- sample(seq(num_total), num_trains)
+set_without_train <- setdiff(seq(num_total), train_inds)
+validate_inds <- sample(seq(set_without_train), num_validate)
+test_inds <- setdiff(seq(set_without_train), validate_inds)
+
+mp_data_train <- mp_data_total %>% filter(row_number() %in% train_inds)
+mp_data_validate <- mp_data_total %>% filter(row_number() %in% validate_inds)
+mp_data_test <- mp_data_total %>% filter(row_number() %in% test_inds)
+
+cat("Does split valid ? OUTPUT:", nrow(mp_data_train) + nrow(mp_data_validate) + nrow(mp_data_test) == num_total)
+
+mp_data_train_x <- mp_data_train %>% select(!melting_pt) %>% as.matrix()
+mp_data_train_y <- mp_data_train %>% pull(melting_pt)
+
+mp_data_validate_x <- mp_data_validate %>% select(!melting_pt) %>% as.matrix()
+mp_data_validate_y <- mp_data_validate %>% pull(melting_pt)
+
+mp_data_test_x <- mp_data_test %>% select(!melting_pt) %>% as.matrix()
+mp_data_test_y <- mp_data_test %>% pull(melting_pt)
+```
+
+```{r}
+length(mp_data_train$melting_pt)
+mp_data_train %>% nrow()
+
+length(mp_data_train_y)
+```
+
+```{r}
+library(glmnet)
+
+compute_validate_error <- function(train_x, train_y, validate_x, validate_y, lambda) {
+  glmRidge <- glmnet(x=train_x, y=train_y, alpha=0, lambda=lambda)
+  validate_y_est <- predict(glmRidge, newx=validate_x)
+  return (mean((validate_y-validate_y_est)^2))
+}
+
+lambdas <- 1.25^seq(0, 100, 1) * 10^(-8)
+
+ridget_results_df <- data.frame(lambda=lambdas) %>% mutate(validate_error=map_dbl(lambda, ~compute_validate_error(mp_data_train_x, mp_data_train_y, mp_data_validate_x, mp_data_validate_y, .x)))
+
+ggplot(data=ridget_results_df, aes(x=lambda, y=validate_error)) + scale_x_continuous(trans = "log") + geom_line(color="blue") + theme_bw()
+```
+
+
+```{r}
+lambda_est <- ridget_results_df %>% filter(validate_error == min(ridget_results_df$validate_error)) %>% pull(lambda)
+
+glmRidge_est <- glmnet(x=mp_data_train_x, y=mp_data_train_y, alpha=0, lambda=lambda_est)
+test_y_est <- predict(glmRidge_est, newx = mp_data_test_x)
+cat("MSE of test:", mean((mp_data_test_y-test_y_est)^2), "\n")
+
+validate_y_est <- predict(glmRidge_est, newx = mp_data_validate_x)
+cat("MSE of validate:", mean((mp_data_validate_y-validate_y_est)^2), "\n")
+
+train_y_est <- predict(glmRidge_est, newx = mp_data_train_x)
+cat("MSE of validate:", mean((mp_data_train_y-train_y_est)^2))
+```
+

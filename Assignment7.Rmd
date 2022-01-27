@@ -1,0 +1,160 @@
+---
+title: "Assignment7Notebook"
+output: html_notebook
+---
+
+## 1. Student's-confidence intervals
+
+```{r}
+library(tidyverse)
+library(Stat2Data)
+
+# Load hawks data
+data("Hawks")
+```
+
+
+```{r}
+RT_hawks <- Hawks %>% filter(Species=="RT")
+RT_hawks_weight <- RT_hawks %>% pull(Weight)
+
+alpha <- 0.01
+sample_size <- length(RT_hawks_weight)
+sample_mean <- mean(RT_hawks_weight, na.rm=TRUE)
+sample_sd <- sd(RT_hawks_weight, na.rm=TRUE)
+# df -> Degree of freedom
+t <- qt(1-alpha/2, df= sample_size-1)
+confidence_interval_l <- sample_mean - t*sample_sd/sqrt(sample_size)
+confidence_interval_u <- sample_mean + t*sample_sd/sqrt(sample_size)
+confidence_interval <- c(confidence_interval_l, confidence_interval_u)
+
+confidence_interval
+```
+
+```{r}
+# Check
+
+help("geom_density")
+
+# Check if Gaussian distribution
+ggplot() + geom_density(data=data.frame(weights=RT_hawks_weight), aes(x=weights)) + theme_bw()
+
+# Check Gaussian suitable
+ggplot(data=data.frame(weights=RT_hawks_weight), aes(sample=weights)) + theme_bw() + stat_qq() + stat_qq_line(color="blue")
+```
+
+## 2. On sample t-test
+
+```{r}
+library(palmerpenguins)
+
+penguins
+```
+```{r}
+adelie_penguins <- penguins %>% filter(species=="Adelie")
+bill_adelie <- adelie_penguins %>% pull(bill_length_mm) %>% na.omit()
+
+t.test(bill_adelie, mu = 40, conf.level = 0.99)
+```
+
+## 3. Implementing a one-sample t-test  
+
+```{r}
+one_sample_t_test <- function(x, mu) {
+  sample_size <- length(x)
+  sample_mu <- mean(x)
+  sample_sd <- sd(x)
+  test_statistic <- (sample_mu - mu)/(sample_sd/sqrt(sample_size))
+  print(paste("test_statistic:", test_statistic))
+  p_value <- 2*(1-pt(abs(test_statistic), df=sample_size-1))
+  return (p_value)
+}
+```
+
+```{r}
+one_sample_t_test(bill_adelie, 40)
+```
+```{r}
+t.test(bill_adelie, mu=40)
+```
+
+## 4. The paired t-test  
+
+```{r}
+library(PairedData)
+data("Barley")
+```
+
+```{r}
+t.test(x=Barley$Glabron, y=Barley$Velvet, paired = TRUE, conf.level = 0.99)
+```
+
+```{r}
+diffs <- Barley %>% mutate(diff=Glabron-Velvet) %>% pull(diff)
+effect_size <- mean(diffs)/sd(diffs)
+
+effect_size # 0.2; 0.5; 0.8
+```
+
+Large effect.
+
+```{r}
+ggplot(data=data.frame(diffs=diffs), aes(x=diffs)) + geom_density() + theme_bw()
+
+ggplot(data=data.frame(diffs=diffs), aes(sample=diffs)) + theme_bw() + stat_qq() + stat_qq_line(color="blue")
+```
+
+## 5. Investigating covering for Student's t intervals
+
+```{r}
+student_t_confidence_interval<-function(sample,confidence_level){
+  sample<-sample[!is.na(sample)] # remove any missing values 
+  n<-length(sample) # compute sample size 
+  mu_est<-mean(sample) # compute sample mean 
+  sig_est<-sd(sample) # compute sample sd
+  alpha = 1-confidence_level # alpha from gamma
+  t<-qt(1-alpha/2,df=n-1) # get student t quantile
+  l=mu_est-(t/sqrt(n))*sig_est # lower
+  u=mu_est+(t/sqrt(n))*sig_est # upper
+  return(c(l,u))
+}
+```
+
+```{r}
+help(map_lgl)
+
+num_trials<-100000
+sample_size<-30
+mu_0<-1
+sigma_0<-3
+alpha<-0.05
+set.seed(0) # set random seed for reproducibility
+
+single_alpha_coverage_simulation_df <- data.frame(trail=seq(num_trails)) %>%
+  mutate(sample=map(.x=trail, .f=~rnorm(n=sample_size, mean=mu_0, sd=sigma_0))) %>%
+  mutate(ci_interval=map(.x=sample, .f=~student_t_confidence_interval(.x, 1-alpha))) %>%
+  mutate(cover=map_lgl(.x=ci_interval, .f=~((min(.x)<=mu_0)&(max(.x)>=mu_0)))) %>%
+  mutate(ci_length=map_dbl(.x=ci_interval, .f=~(max(.x)-min(.x))))
+  
+# compute interval length
+single_alpha_coverage_simulation_df%>%
+  pull(cover)%>%
+  mean() # estimate of coverage probability
+```
+
+```{r}
+alpha <- 0.5
+
+single_alpha_coverage_simulation_df <- data.frame(trail=seq(num_trails)) %>%
+  mutate(sample=map(.x=trail, .f=~rnorm(n=sample_size, mean=mu_0, sd=sigma_0))) %>%
+  mutate(ci_interval=map(.x=sample, .f=~student_t_confidence_interval(.x, 1-alpha))) %>%
+  mutate(cover=map_lgl(.x=ci_interval, .f=~((min(.x)<=mu_0)&(max(.x)>=mu_0)))) %>%
+  mutate(ci_length=map_dbl(.x=ci_interval, .f=~(max(.x)-min(.x))))
+  
+# compute interval length
+single_alpha_coverage_simulation_df%>%
+  pull(cover)%>%
+  mean() # estimate of coverage probability
+```
+
+

@@ -1,0 +1,389 @@
+---
+title: "Assignment5"
+output: html_notebook
+---
+
+```{R}
+library(tidyverse)
+```
+
+```{R}
+set.seed(0)
+n<-1000
+# Generate an uniform distribution
+sample_X<-data.frame(U=runif(n))%>%
+  mutate(X=case_when(
+    # X=1
+    (0<=U)&(U<0.25)~1,
+    # X=5
+    (0.25<=U)&(U<0.5)~5,
+    # X=0
+    (0.5<=U)&(U<=1)~0))%>%
+pull(X)
+```
+
+**Answer:**
+1. It's an uniform distribution, so $\mathbb P(\alpha) = \mathbb P(\beta)$
+
+```{R}
+sample_X_015 <- function(alpha, beta, n) {
+  sample_X<-data.frame(U=runif(n))%>%
+  mutate(X=case_when(
+    # X=1
+    (0<=U)&(U<alpha)~1,
+    # X=5
+    (alpha<=U)&(U<alpha+beta)~5,
+    # X=0
+    (alpha+beta<=U)&(U<=1)~0))%>%
+pull(X)
+  return (sample_X)
+}
+```
+
+### Compute the expectation
+
+```{R}
+sample_X <- sample_X_015(0.5, 0.1, 10000)
+mean(sample_X)
+```
+
+**Answer:**  
+$\mathbb E(X)=0.5*1+0.1*5+0*0.4=1$  
+Compared with the average of iid, it's almost the same, accroding to the law of large numbers, when n tends to $\infty$, the average tends to $\mathbb E(X)$.  
+
+### Compute the variance
+
+```{R}
+variance_iid <- sum((sample_X - mean(sample_X)) ** 2)/length(sample_X)
+variance_iid
+``` 
+
+```{r}
+var(sample_X)
+```
+
+**Answer:**  
+$\mathbb V(X)=\frac{1}{3}((1-E(X))^2+(5-E(X))^2+(0-E(X))^2)$
+$\mathbb V(X)=\alpha+25\beta-\alpha^2-25\beta^2-10\alpha\beta=2,for \space\alpha=0.5;\beta=0.1$
+
+```{r}
+alpha = 0.5
+beta = 0.1
+varance = alpha+25*beta-alpha**2-25*beta**2-10*alpha*beta
+varance
+```
+
+
+```{R}
+(0.5*(1-mean(sample_X))**2+0.1*(5-mean(sample_X))**2+0.4*(0-mean(sample_X))**2)
+```
+
+
+```{R}
+set.seed(0)
+
+average_vector <- c()
+expectation_vector <- c()
+beta_vector <- seq(0, 0.9, 0.01)
+
+for (beta in beta_vector) {
+  sample_X <- sample_X_015(0.1, beta, 100)
+  average <- (sum(sample_X)/length(sample_X))
+  average_vector <- append(average_vector, average)
+  expectation_vector <- append(expectation_vector, 0.1+5*beta)
+}
+```
+
+```{r}
+# Plot of the sample average of beta
+data_1 <- data.frame(beta_vector, average_vector)
+ggplot(data_1, aes(beta_vector)) + geom_point(aes(y=average_vector)) + geom_line(aes(y=expectation_vector)) + labs(x=TeX("$\\beta$"),y="Mean",linetype="")+
+theme_bw()
+```
+
+```{r}
+set.seed(0)
+n<-100
+alpha<-1/10
+
+simulation_by_beta<-data.frame(beta=seq(0,9/10,0.01))%>%
+  mutate(sample_X=map(.x=beta,~sample_X_015(alpha,.x, 100)))%>%
+  mutate(sample_avg=map_dbl(.x=sample_X,~mean(.x)))%>%
+  select(-sample_X)%>%
+  mutate(expectation=alpha+5*beta)
+
+simulation_by_beta
+```
+
+```{r}
+df_pivot<-simulation_by_beta%>%
+  rename(Sample=sample_avg,Expectation=expectation)%>%
+  pivot_longer(cols=!beta,names_to = "var",values_to = "val" )
+df_pivot%>%head(5)
+```
+
+```{r}
+# install.packages('latex2exp')
+library(latex2exp)
+```
+
+```{r}
+df_pivot%>%
+  ggplot(aes(x=beta,y=val,linetype=var))+
+  geom_line(data=df_pivot%>%
+              filter(var=="Expectation"))+
+  geom_point(data=df_pivot%>%
+              filter(var=="Sample"))+
+      labs(x=TeX("$\\beta$"),y="Mean",linetype="")+
+theme_bw()
+```
+
+
+## 3. Gaussian distribution  
+
+### Density function for Gaussian random variable.
+
+```{r}
+help(rnorm)
+```
+
+```{R}
+x <- seq(-4, 6, 0.1)
+d_norm_1 <- dnorm(x, 1, sqrt(1))
+d_norm_2 <- dnorm(x, 1, sqrt(2))
+d_norm_3 <- dnorm(x, 1, sqrt(3))
+
+density_plot_data <- data.frame(x, d_norm_1, d_norm_2, d_norm_3)
+
+density_plot_data <- density_plot_data %>% pivot_longer(cols=c("d_norm_1", "d_norm_2", "d_norm_3"), names_to="Variance", values_to="Density")
+
+ggplot(density_plot_data, aes(x, Density, color=Variance, linetype=Variance)) + geom_line() + theme_bw()
+```
+
+```{r}
+# Answer
+normal_densities_by_x<-data.frame(x=x,density=dnorm(x,mean=1,sd=sqrt(1)),var=1)%>%
+  rbind(data.frame(x=x,density=dnorm(x,mean=1,sd=sqrt(2)),var=2))%>%
+  rbind(data.frame(x=x,density=dnorm(x,mean=1,sd=sqrt(3)),var=3))
+
+ggplot(normal_densities_by_x, aes(x, y=density, color=as.character(var), linetype=as.character(var))) + geom_line() + theme_bw() + labs(color="Variance", linetype="Variance", x="x", y="density")
+```
+
+### Cumulative distribution function for Gaussian distribution
+
+```{R}
+q_norm_1 <- qnorm(x, 1, 1)
+q_norm_2 <- qnorm(x, 1, 2)
+q_norm_3 <- qnorm(x, 1, 3)
+
+density_plot_data <- data.frame(x, q_norm_1, q_norm_2, q_norm_3)
+
+density_plot_data <- density_plot_data %>% pivot_longer(cols=c("q_norm_1", "q_norm_2", "q_norm_3"), names_to="Variance", values_to="Density")
+
+ggplot(density_plot_data, aes(x, Density, color=Variance, linetype=Variance)) + geom_line() + theme_bw()
+```
+
+```{R}
+normal_cdf_by_x<-data.frame(x=x,cdf=pnorm(x,mean=1,sd=sqrt(1)),var=1)%>%
+  rbind(data.frame(x=x,cdf=pnorm(x,mean=1,sd=sqrt(2)),var=2))%>%
+  rbind(data.frame(x=x,cdf=pnorm(x,mean=1,sd=sqrt(3)),var=3))
+
+ggplot(normal_cdf_by_x,aes(x,y=cdf,color=as.character(var),linetype=as.character(var)))+
+  geom_line()+
+  theme_bw()+
+  labs(color="Variance",linetype="Variance",x="x",y="Cumulative distribution function")
+```
+
+### Quantile function
+
+```{r}
+probs=seq(0,1,0.01)
+normal_quantile_by_x<-data.frame(p=probs,q=qnorm(probs,mean=1,sd=sqrt(1)),var=1)%>%
+  rbind(data.frame(p=probs,q=qnorm(probs,mean=1,sd=sqrt(2)),var=2))%>%
+  rbind(data.frame(p=probs,q=qnorm(probs,mean=1,sd=sqrt(3)),var=3))
+
+ggplot(normal_quantile_by_x,aes(x=p,y=q,color=as.character(var),linetype=as.character(var)))+
+  geom_line()+
+  theme_bw()+
+  labs(color="Variance",linetype="Variance",y="Quantile",x="Probability")
+```
+
+### Standard normal distribution
+
+```{r}
+set.seed(0)
+standardGaussianSample <- rnorm(100)
+```
+
+```{r}
+mean1Var3GaussianSampleA <- standardGaussianSample * sqrt(3) + 1
+```
+
+```{r}
+set.seed(0)
+mean1Var3GaussianSampleB <- rnorm(100, 1, sqrt(3))
+```
+
+Comapre sample A and sample B.  
+```{r}
+all.equal(mean1Var3GaussianSampleA, mean1Var3GaussianSampleB)
+```
+
+
+```{r}
+colors<-c("Population density"="red", "Sample kernel density"="blue",
+          "Population mean"="green", "Sample mean"="violet")
+linetypes<-c("Population density"="solid", "Sample kernel density"="dashed",
+          "Population mean"="solid", "Sample mean"="dashed")
+
+ggplot()+labs(x="x",y="Density")+theme_bw()+ geom_line(data=(normal_densities_by_x%>%
+filter(var==3)),
+aes(x,y=density,color="Population density"))+
+  # create plot of theoretical density
+  geom_density(data=data.frame(x=mean1Var3GaussianSampleA),
+                  aes(x=x,color="Sample kernel density",
+                      linetype="Sample kernel density"))+
+  # add in kernel density plot from real sample
+  geom_vline(aes(xintercept=1,color="Population mean",
+                 linetype="Population mean"))+
+  geom_vline(aes(xintercept=mean(mean1Var3GaussianSampleA),
+                 color="Sample mean",linetype="Sample mean"))+
+  scale_color_manual(name = "Legend", values=colors)+
+  scale_linetype_manual(name="Legend", values=linetypes)
+```
+
+
+## 4. The Binomial distribution and the central limit theorem  
+
+```{r}
+library(tidyverse)
+help(dbinom)
+```
+
+```{r}
+help(dbinom)
+
+set.seed(0)
+dbinom(c(0, 1, 2, 3, 4), 20, prob = 0.7)
+```
+
+```{r}
+set.seed(0)
+dbinom(seq(-4, 4), 20, prob = 0.7)
+```
+
+
+```{r}
+set.seed(0)
+binom_df <- data.frame(x=0:50, pmf=dbinom(seq(0, 50), size=50, prob=7/10))
+binom_df %>% head(3)
+```
+```{r}
+help(dnorm)
+x <- seq(0, 50, 0.01)
+norm_df <- data.frame(x=x, pdf=dnorm(x, mean=50*0.7, sd=sqrt(50*0.7*(1-0.7))))
+norm_df %>% head(3)
+```
+
+```{r}
+colors<-c("Gaussian pdf"="red", "Binomial pmf"="blue")
+fill<-c("Gaussian pdf"="white", "Binomial pmf"="white")
+
+ggplot()+labs(x="x",y="Probability")+theme_bw()+ geom_line(data=norm_df, aes(x,y=pdf,color="Gaussian pdf"),size=2)+
+# create plot of Gaussian density 
+  geom_col(data=binom_df, aes(x=x,y=pmf,color="Binomial pmf",fill="Binomial pmf"))+
+  scale_color_manual(name = "", values=colors)+
+  scale_fill_manual(name = "", values=fill)+
+  xlim(c(20,50))
+```
+## 5. Exponential distribution  
+
+```{r}
+exp(0)
+```
+
+
+```{r}
+my_cdf_exp <- function(x, lambda) {
+  if (x <= 0) {
+    return (0)
+  } else {
+    return (1-exp(-1*lambda*x))
+  }
+}
+```
+
+```{r}
+lambda <- 1/2
+map_dbl(.x=seq(-1,4), .f=~my_cdf_exp(x=.x, lambda=lambda))
+```
+
+```{r}
+test_inputs<-seq(-1,10,0.1)
+my_cdf_output<-map_dbl(.x=test_inputs,.f=~my_cdf_exp(x=.x,lambda=lambda))
+inbuilt_cdf_output<-map_dbl(.x=test_inputs,.f=~pexp(q=.x,rate=lambda))
+all.equal(my_cdf_output,inbuilt_cdf_output)
+```
+
+```{r}
+my_quantile_exp <- function(prob, lambda) {
+  if (prob==0) {
+    return (0)
+  } else {
+    return (-1/lambda*log(1-prob))
+  }
+}
+```
+
+```{r}
+lambda <- 1/2
+map_dbl(.x=seq(0, 0.99, 0.01), .f=~my_quantile_exp(prob=.x, lambda=lambda))
+```
+
+```{r}
+help(qexp)
+```
+
+
+```{r}
+test_inputs<-seq(0, 0.99, 0.01)
+my_cdf_output <- map_dbl(.x=test_inputs, .f=~my_quantile_exp(prob=.x, lambda=lambda))
+inbuilt_cdf_output <- map_dbl(.x=test_inputs,.f=~qexp(p=.x,rate=lambda))
+all.equal(my_cdf_output,inbuilt_cdf_output)
+```
+
+## 6. Poisson distribution  
+
+```{r}
+library(tidyverse)
+```
+
+
+```{r}
+set.seed(0)
+rv <- rbinom(30, 1, 0.3)
+mean(rv)
+```
+
+```{r}
+num_trails <- 1000
+sample_size <- 30
+
+simulation_df <- data.frame(trail=seq(num_trails)) %>% mutate(simulation=map(.x=trail, .f=~rbinom(sample_size, 1, 0.3))) %>% mutate(sample_mean=map_dbl(.x=simulation, .f=mean))
+```
+
+
+```{r}
+help("geom_density")
+```
+
+
+```{r}
+set.seed(0)
+num_trails_per_sample_size <- 10
+max_sample_size <- 10000
+q <- 0.3
+
+sim_by_n_df <- crossing(trial=seq(num_trails_per_sample_size), sample_size=seq(to=sqrt(max_sample_size), by=0.1)**2) %>% mutate(simulation=pmap(.l=list(trial, sample_size),.f=~rbinom(.y, 1, q)))
+```
+

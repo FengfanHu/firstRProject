@@ -1,0 +1,19 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+charV <- as.character(1:5) # Char sequence
+numV <- 6:10
+df <- data.frame(charV, numV)
+df
+```
+```{r}
+df <- transform(df, charV=as.numeric(charV))
+```
+
+```{r}
+df$numV - df$charV
+```
+
