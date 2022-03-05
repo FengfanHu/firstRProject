@@ -1,0 +1,210 @@
+---
+title: "mb21014_EMATM0061_A_Report"
+author: "Fengfan Hu"
+date: "15/12/2021"
+output:
+  html_document:
+    df_print: paged
+  html_notebook: default
+---
+
+
+## Section A
+
+```{r, message=FALSE}
+library(tidyverse) # Load tidyverse package
+```
+
+### A.1
+
+Load the "finance_data_EMATM0061" csv file into R data frame called "finance_data_original"
+
+```{r}
+folder_name <- "."
+file_name <- "finance_data_EMATM0061"
+
+# Load data from "finance_data_EMATM0061" csv file into data frame.
+finance_data_original <- read.csv(paste0(folder_name, "/", file_name, ".csv")) 
+```
+Show the number of rows and columns in the data frame.
+
+```{r}
+# Show the number of row and column of the data frame.
+cat(
+  "The data frame have",
+  finance_data_original %>% nrow(),
+  "rows and",
+  finance_data_original %>% ncol(),
+  "columns."
+  )
+```
+
+### A.2
+
+```{r}
+finance_data <- finance_data_original %>%
+  # Select columns needed from original data frame.
+  select(state_year_code, 
+         Details.Education.Education.Total,
+         Details.Health.Health.Total.Expenditure,
+         Details.Transportation.Highways.Highways.Total.Expenditure,
+         Totals.Revenue,
+         Totals.Expenditure) %>%
+  # Rename columns to corresponding new name
+  rename(education_expenditure=Details.Education.Education.Total,
+         health_expenditure=Details.Health.Health.Total.Expenditure,
+         transport_expenditure=Details.Transportation.Highways.Highways.Total.Expenditure, 
+         totals_revenue=Totals.Revenue,
+         totals_expenditure=Totals.Expenditure)
+```
+
+Display a subset of the "finance_data" data frame consisting of the first five rows and first three columns ("state_year_code","education_expenditure","health_expenditure").  
+
+```{R}
+finance_data %>% head(c(5, 3))
+```
+
+
+### A.3
+
+Create a new column "totals_savings" which is equal to the difference between revenue and the expenditure.  
+```{r}
+finance_data <- finance_data %>% mutate("totals_savings"=totals_revenue - totals_expenditure)
+```
+
+Display a subset of the "finance_data" consisting of the first three rows and the specified four columns ("state_year_code","totals_revenue","totals_expenditure","totals_savings").  
+
+```{r}
+finance_data %>% select(state_year_code, totals_revenue, totals_expenditure, totals_savings) %>% head(3) 
+```
+
+### A.4
+
+Separate "state_year_code" column into "state" column and "year" column.
+```{r}
+finance_data <- finance_data %>% separate(state_year_code, into=c("state", "year"), sep="__", convert=TRUE)
+```
+
+Convert the "state" column to the title case.  
+
+```{r}
+finance_data <- finance_data %>% mutate(state=str_to_title(state))
+```
+
+Display a subset of the "finance_data" consisting of the first three rows and the specified five columns ("state", "year","totals_revenue","totals_expenditure","totals_savings").  
+
+```{r}
+finance_data %>% select("state", "year", "totals_revenue", "totals_expenditure", "totals_savings") %>% head(3)
+```
+
+### A.5
+
+Filter data frame with only four states "Louisiana", "Montana", "Mississippi" and "Kentucky" remains.  
+
+```{r}
+finance_data_four_states <- finance_data %>% filter(state=="Louisiana" | state=="Montana" | state=="Mississippi" | state=="Kentucky")
+```
+
+Plot Year-Revenue graph by using geom_smooth function.  
+
+```{r, warning=FALSE}
+# We convert "totals_revenue" to millions by dividing 1,000,000
+ggplot(data = finance_data_four_states, aes(x=year, y=(totals_revenue/1000000)))+
+  geom_smooth(aes(color=state, linetype=state), method='loess', formula="y~x")+
+  labs(x="Year", y="Revenue(millions$)")+
+  theme_bw()
+```
+
+### A.6
+
+Create a function which takes as input a number and rounds it down to the nearest multiple of 10.
+```{r}
+get_decade <- function(num) {
+  return (floor(num/10)*10)
+}
+```
+
+Create a new column "decade" which give the decade corresponding to the year column by using get_decade() function.
+
+```{r}
+finance_data <- finance_data %>% mutate(decade=get_decade(year))
+```
+
+Show the first three states that had the highest mean-average savings ("totals_savings") over the decade starting 2000.
+
+```{r}
+finance_data %>% 
+  # Get the data of which the decade equal to 2000
+  filter(decade==2000) %>%
+  # Group by "state"
+  group_by(state) %>%
+  # Get the mean average savings of each state.
+  summarise(mean_avg_savings=mean(totals_savings, na.rm=TRUE)) %>%
+  # Sort "mean_avg_savings" by descending order.
+  arrange(desc(mean_avg_savings)) %>%
+  # Display the first three states with the highest "mean_avg_savings".
+  head(c(3,1))
+```
+
+### A.7
+
+```{r}
+alaska_summary <- finance_data %>%
+  # Get the 1990, 2000 and 2010 decades data from Alaska.
+  filter(state=="Alaska" & (decade==1990 | decade==2000 | decade == 2010)) %>% 
+  # Group by "decade"
+  group_by(decade) %>% 
+  summarise(
+    # Compute the mean and median of "education_expenditure", "health_expenditure" and "transport_expenditure" and name it by "{substr(.col, 0, 2)}_{.fn}" format.
+    across(
+      .cols = c(education_expenditure, health_expenditure, transport_expenditure),
+      .fns = list(mn = ~mean(.x, na.rm=TRUE), md = ~median(.x, na.rm=TRUE)),
+      .names = "{substr(.col, 0, 2)}_{.fn}"
+    )
+  )
+
+# Display alaska_summary
+alaska_summary
+```
+
+### A.8
+
+Create a function which helps to impute the NA value by median.  
+
+```{r}
+impute_by_median <- function(x) {
+  md <- median(x, na.rm = TRUE)
+  impute_f <- function(z) {
+    if(is.na(z)) {
+      return (md)
+    } else {
+      return (z)
+    }
+  }
+  return (map_dbl(x, impute_f))
+}
+```
+
+Generate a subset of "finance_data" which the state column takes the value "Idaho" and the "decade" column takes the value 2000 and includes all columns except from "state" and "decade".  
+
+```{r}
+idaho_2000 <- finance_data %>% filter(state=="Idaho" & decade==2000) %>% select(!c(state, decade))
+```
+
+Impute NA value from "education_expenditure" to "totals_savings" by median.  
+
+```{r}
+idaho_2000_imputed <- idaho_2000 %>% mutate(across(education_expenditure:totals_savings, ~impute_by_median(.x)))
+```
+
+Display a subset of "idaho_2000_imputed" consisting the first five rows and the four columns ("year", "health_expenditure", "education_expenditure" and "totals_savings").
+
+
+```{r}
+idaho_2000_imputed %>%
+  # Select columns needed
+  select(c("year", "health_expenditure", "education_expenditure", "totals_savings")) %>% 
+  # Show the first 5 rows.
+  head(5)
+```
+

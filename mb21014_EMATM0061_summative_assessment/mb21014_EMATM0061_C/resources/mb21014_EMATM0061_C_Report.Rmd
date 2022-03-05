@@ -1,0 +1,585 @@
+---
+title: "mb21014_EMATM0061_C_Report"
+author: "Fengfan"
+date: "02/01/2022"
+output:
+  html_document: default
+---
+
+## Section C
+
+This section, we will investigate the regularized logistic regression for supervised classification.
+
+### Description of regularized logistic regression
+
+Before introducing the regularized logistic regression, let's first represent supervised learning and supervised classification. Supervised learning uses labelled data sets, i.e. (X, Y) pairs, to train learning algorithms that learn the rules to classify data or predict outcomes accurately. And supervised classification is supervised learning applied to the classification problem. Different from the regression problem, which handles continuous values, classification deals with categorical values. The objective of supervised classification is to accurately classify new data without labels to categories.
+
+Regularized logistic regression is not, as the name shows, as a regression algorithm. It is a method for learning a linear classifier $\phi(x)=\mathbb{1}\{ \omega x^{T}+\omega_0 \ge0 \}$, here the indicator function demonstrates logistic regression is used for binary classification. The Bayes classifier is introduced to meet the requirement, as follows.  
+$$
+\phi^{*}(x):=\left\{\begin{array}{lll}
+1 & \text { if } & \mathbb{P}(Y=1 \mid X=x) \geq \mathbb{P}(Y=0 \mid X=x) \\
+0 & \text { if } & \mathbb{P}(Y=0 \mid X=x)>\mathbb{P}(Y=1 \mid X=x)
+\end{array}\right.
+$$
+Since we have the Bayes classifier, next, we should consider how to map real numbers to (0, 1). Sigmoid function $S$, given by  
+$$
+S(z)=\frac{1}{1+e^{-z}}
+$$
+is introduced to resolve this problem, since it has good features:  
+
+- The output value lays between 0 to 1.  
+- $1-S(z)=S(-z)$.  
+- $\frac{\partial{logS(z)}}{\partial{z}}=S(-z)$.  
+
+Above all, we have  
+$$
+\mathbb{P}(Y=y \mid X=x)=\left\{\begin{array}{ll}
+\mathrm{S}\left(w x^{\top}+w_{0}\right) & \text { if } y=1 \\
+\mathrm{~S}\left(-w x^{\top}-w_{0}\right) & \text { if } y=0
+\end{array}\right.
+$$
+Equivalently, we have$\mathbb{P}(Y=y|X=x)=S((2y-1)\cdot(\omega{x^{T}}+\omega_0))$, and we can use this formula to compute $Y$ from $X$.  
+
+Next, let's represent how the training algorithm works and how to predict test data. As the formula $\mathbb{P}(Y=y|X=x)=S((2y-1)\cdot(\omega{x^{T}}+\omega_0))$ shows, we have two unknown parameters here, so before making a prediction, we should first get the parameter $\omega$ and $\omega_0$. However, a training algorithm is used to learn these parameters from training data sets, we first split the whole data sets into training and testing data sets, and we use the features and output, i.e. $Y$, to learn what's the optimal $\omega$ and $\omega_0$ that compute the $Y$ of training data with least error, here we can simply compute the error by taking the average mean of the absolute difference between predicted $Y$ and original $Y$. Once we get the optimal parameters, we can use them to predict the $Y$ of testing data and compute the test error to measure the performance.  
+
+Though we get the parameters and use them to predict output, the model's performance applied to the testing data can still be better. One of the optimizations is to introduce validation data set. We split the whole data set into training, validation and testing data. We use the validation data sets to find the optimal parameters with minimal error on the validation data sets because our objective is to predict testing data accurately. We cannot use the testing data sets to optimize the parameters, it's put the cart before the horse. Another optimization is to take regularization term in the logistic regression, and it's called regularized logistic regression when we take it. The idea is that when the dimension of $X$ (features) is very large, and the sample number of the training data sets is relatively small, the performance on the testing data can be poor, so we penalize the logistic regression by damaging the performance on the training data, given by  
+$$
+\mathcal{R}_{\alpha, \lambda}^{\mathrm{bn}}\left(\phi_{w, w_{0}}\right)=\frac{1}{n} \sum_{i=1}^{n}\left\{-\log \mathrm{S}\left(\left(2 Y_{i}-1\right) \cdot\left(w X_{i}^{\top}+w_{0}\right)\right)\right\}+\lambda\left\{\frac{(1-\alpha)}{2} \cdot\|w\|_{2}^{2}+\alpha \cdot\|w\|_{1}\right\}
+$$
+We take both L1 ($\|w\|_{1}$) norm and L2 ($\|w\|_{2}^{2}$) here because L1 norm can exclude useless variables but is unstable and L2 norm can take all the features but can not eliminate the useless variables. Moreover, we take two hyper-parameters $\lambda$ and $\alpha$ here to represent how heavy the penalty is and of L1 and L2.  
+
+The regularized logistic regression is suitable for binary classification problems. In the following parts, we will implement the regularized logistic regression on realistic data sets and find the optimal parameter for the best performance on the testing data.  
+
+### Description of data set.
+
+The data set we used for implementing regularized logistic regression is [Travel Insurance Prediction Data](https://www.kaggle.com/tejashvi14/travel-insurance-prediction-data/code) (1). It is a data set from [Kaggle](https://www.kaggle.com) (2) and the target of it is to predict whether a customer will be interested in buying travel insurance.
+
+The data set has 1987 examples and nine features. The following table shows the description and type of each variable, and binary variable TravelInsurance is the predicted variable, i.e. $Y$ of the data set.  
+
+| Variable    | Description | Type |
+| ----------- | ----------- | ---- |
+| X   | Id | Discrete |
+| Age   | Age Of The Customer | Discrete |
+| Employment Type   | The Sector In Which Customer Is Employed | Categorical (Binary) |
+| GraduateOrNot   | Whether The Customer Is College Graduate Or Not | Categorical (Binary) |
+| AnnualIncome   | The Yearly Income Of The Customer In Indian Rupees[Rounded To Nearest 50 Thousand Rupees] | Discrete (Cause it's rounded) |
+| FamilyMembers   | Number Of Members In Customer's Family | Discrete |
+| ChronicDisease   | Whether The Customer Suffers From Any Major Disease Or Conditions Like Diabetes/High BP or Asthama,etc | Binary |
+| FrequentFlyer   | Derived Data Based On Customer's History Of Booking Air Tickets On Atleast 4 Different Instances In The Last 2 Years[2017-2019] | Categorical (Binary) |
+| EverTravelledAbroad   | Has The Customer Ever Travelled To A Foreign Country[Not Necessarily Using The Company's Services] | Categorical (Binary) |
+| TravelInsurance   | Did The Customer Buy Travel Insurance Package During Introductory Offering Held In The Year 2019 | Binary |
+
+```{r, message=FALSE}
+# Load package.
+library(tidyverse)
+```
+
+#### Load and preprocess data
+```{r}
+# Load data set.
+file_name <- "TravelInsurancePrediction.csv"
+travel_insurance <- read.csv(file_name)
+
+# Get the dimensions of the data set.
+dimensions <- travel_insurance %>% dim()
+cat("The data set has", dimensions[1], "examples and", dimensions[2], "features.\n")
+
+# Show the type of each variables and check if has NA value
+for(column in travel_insurance %>% colnames()) {
+  cat("The type of variable", column)
+  cat("is", typeof(travel_insurance[[column]]))
+  if (travel_insurance[[column]] %>% is.na() %>% sum == 0) {
+    cat(", has no NA value.\n")
+  } else {
+    cat(", has", travel_insurance[[column]] %>% is.na() %>% sum,"NA value.\n")
+  }
+}
+
+# Show unique value of character type features
+for(column in travel_insurance %>% colnames()) {
+  if (typeof(travel_insurance[[column]])=="character") {
+    cat(column, ":", paste(travel_insurance[[column]] %>% unique(), ""), ".\n")
+  }
+}
+```
+
+#### Data preprocessing  
+
+From the original table, we observe that some binary or categorical type variables are character types, so we should convert them to logistic types before training.  
+```{r}
+travel_insurance <- travel_insurance %>%
+  # Convert binary to logistic (0 or 1) type .i.e dummy variable
+  mutate(Employment.Type=as.numeric(Employment.Type=="Government Sector")) %>%
+  mutate(GraduateOrNot=as.numeric(GraduateOrNot=="Yes")) %>%
+  mutate(FrequentFlyer=as.numeric(FrequentFlyer=="Yes")) %>%
+  mutate(EverTravelledAbroad=as.numeric(EverTravelledAbroad
+=="Yes")) %>%
+  # Remove the useless column X (id column of the data set)
+  select(-X)
+
+travel_insurance %>% head()
+```
+##### Split data  
+
+We split data into testing, training and validation sample.
+```{r}
+set.seed(0)
+
+num_total <- travel_insurance %>% nrow()
+num_train <- floor(num_total*0.65)
+num_validate <- floor(num_total*0.15)
+num_test <- num_total - num_train - num_validate
+
+train_inds <- sample(seq(num_total), num_train)
+set_without_train <- setdiff(seq(num_total), train_inds)
+validate_inds <- sample(seq(set_without_train), num_validate)
+test_inds <- setdiff(seq(set_without_train), validate_inds)
+
+travel_insurance_test <- travel_insurance %>% filter(row_number() %in% test_inds)
+travel_insurance_train <- travel_insurance %>% filter(row_number() %in% train_inds)
+travel_insurance_validate <- travel_insurance %>% filter(row_number() %in% validate_inds)
+
+travel_insurance_test_x <- travel_insurance_test %>% select(-TravelInsurance)
+travel_insurance_test_y <- travel_insurance_test %>% pull(TravelInsurance)
+
+travel_insurance_train_x <- travel_insurance_train %>% select(-TravelInsurance)
+travel_insurance_train_y <- travel_insurance_train %>% pull(TravelInsurance)
+
+travel_insurance_validate_x <- travel_insurance_validate %>% select(-TravelInsurance)
+travel_insurance_validate_y <- travel_insurance_validate %>% pull(TravelInsurance)
+
+cat("Number of test data:", travel_insurance_test %>% nrow(), "\n")
+cat("Number of validate data:", travel_insurance_validate %>% nrow(), "\n")
+cat("Number of train:", travel_insurance_train %>% nrow(), "\n")
+cat("Total number of data:", num_total)
+```
+
+### Implement the regularized logistic regression  
+
+```{r, message=FALSE}
+# Load package
+library(glmnet)
+```
+
+#### Performance of model as the amount of training data varies  
+
+Here, we investigate the performance of model changes as we vary the amount of training data. For simplicity, we fix the testing data to 20%, and the parameters $\lambda$ to 0.005 and $\alpha$ to 0.  
+```{r}
+# Function to split data and compute the train error and test error
+compute_train_validate_error_with_percentage <- function(data, train_percentage) {
+  num_total <- data %>% nrow()
+  # Take percentage of the whole data set as training data
+  num_train <- floor(num_total*train_percentage)
+  # Fix testing data to 20%
+  num_test <- floor(num_total*0.2)
+  num_validate <- num_total - num_train - num_test
+  
+  train_inds <- sample(seq(num_total), num_train)
+  set_without_train <- setdiff(seq(num_total), train_inds)
+  validate_inds <- sample(seq(set_without_train), num_validate)
+  test_inds <- setdiff(seq(set_without_train), validate_inds)
+  
+  travel_insurance_train <- data %>% filter(row_number() %in% train_inds)
+  travel_insurance_validate <- data %>% filter(row_number() %in% validate_inds)
+  
+  train_x <- travel_insurance_train %>% select(-TravelInsurance)
+  train_y <- travel_insurance_train %>% pull(TravelInsurance)
+  
+  validate_x <- travel_insurance_validate %>% select(-TravelInsurance)
+  validate_y <- travel_insurance_validate %>% pull(TravelInsurance)
+  
+  model <- glmnet(x=train_x, y=train_y, alpha=0, lambda=0.005, family="binomial")
+  train_y_predicted <- predict(model, train_x %>% as.matrix(), type="class") %>% as.integer()
+  validate_y_predicted <- predict(model, validate_x %>% as.matrix(), type="class") %>% as.integer()
+  
+  train_error <- mean(abs(train_y_predicted - train_y))
+  validate_error <- mean(abs(validate_y_predicted - validate_y))
+  
+  return (list(train_error=train_error, validate_error=validate_error))
+}
+
+# Fix the random seed for replicability
+set.seed(0)
+
+# Make a percentage sequence from 25% to 75%
+train_percentage <- seq(0.25, 0.75, 0.01)
+
+# Get the error of training data and validation data as the amount of training data varies
+logistic_results_df <- data.frame(train_percentage=train_percentage) %>%
+  mutate(output=map(train_percentage, ~compute_train_validate_error_with_percentage(travel_insurance, .x))) %>%
+  mutate(train_error=map_dbl(output, ~((.x)$train_error)),
+         validate_error=map_dbl(output, ~((.x)$validate_error))) %>%
+  select(-output)
+
+# Plot the predicted error as the amount of training data varies
+colors <- c("Training error"="red", "Validation error"="blue")
+ggplot(data=logistic_results_df, aes(x=train_percentage*num_total)) +
+  geom_smooth(aes(y=train_error, color="Training error"), method = 'loess', formula = "y ~ x") +
+  geom_smooth(aes(y=validate_error, color="Validation error"), method = 'loess', formula = "y ~ x") +
+  labs(x="Amount of training data", y="Predicted error") +
+  theme_bw()
+```
+
+From the above diagram, we observe that as the amount of training data increases, the model's performance does better, and both the training error and validation error go down. So, we deduce that a large amount of training data helps the model perform better.  
+
+#### Performance of model as the hyper-parameters varies  
+
+We explore how the model's performance changes on both training and validation data as we change the hyper-parameters. However, we have two hyper-parameters $\lambda$ and $\alpha$ and three cases here. In the first case, $\alpha=1$ and we take the L1 ($\|w\|_{1}$) norm for regularization. In the second case, $\alpha=2$ and we take the L2 ($\|w\|_{2}^{2}$) norm for regularization. In the last case, we combine the L1, L2 norms for regularization. In this report, we just the L2 regularization and L1, L2 regularization.  
+
+##### L2 regularized logistic regression case  
+```{r}
+# Fix the random seed for replicability
+set.seed(0)
+
+# Potential lambdas
+lambda_min=1e-8
+lambdas <- lambda_min*(1.25^seq(100))
+
+compute_train_validate_error_with_lambda <- function(train_x, train_y, validate_x, validate_y, lambda) {
+  # Fix alpha to 0 for L2 penalty.
+  model_l2 <- glmnet(x=train_x, y=train_y, alpha=0, lambda=lambda, family="binomial")
+  train_y_predicted_l2 <- predict(model_l2, train_x %>% as.matrix(), type="class") %>% as.integer()
+  validate_y_predicted_l2 <- predict(model_l2, validate_x %>% as.matrix(), type="class") %>% as.integer()
+  train_error_l2 <- mean(abs(train_y_predicted_l2 - train_y))
+  validate_error_l2 <- mean(abs(validate_y_predicted_l2 - validate_y))
+  
+  return (list(
+    train_error_l2=train_error_l2,
+    validate_error_l2=validate_error_l2
+    ))
+}
+
+logistic_results_df_l2 <- crossing(lambdas=lambdas) %>%
+  mutate(output=pmap(.l=list(lambdas),
+                    .f=~compute_train_validate_error_with_lambda(
+                      travel_insurance_train_x,
+                      travel_insurance_train_y,
+                      travel_insurance_validate_x,
+                      travel_insurance_validate_y,
+                      .x
+                      ))) %>%
+  mutate(
+         train_error_l2=map_dbl(output, ~((.x)$train_error_l2)),
+         validate_error_l2=map_dbl(output, ~((.x)$validate_error_l2))
+         ) %>%
+  select(-output)
+
+ggplot(data=logistic_results_df_l2, aes(x=lambdas)) +
+  geom_smooth(aes(y=train_error_l2, color="Training error by L2"), method = 'loess', formula = "y ~ x") +
+  geom_smooth(aes(y=validate_error_l2, color="Validation error by L2"), method = 'loess', formula = "y ~ x") +
+  scale_x_continuous(trans='log10') +
+  labs(x="Lambda", y="Predicted error") +
+  theme_bw()
+```
+
+From the above diagram, we observe that in the L2 case, the predicted error for both training and validation first decrease and then increase with the lambda increases. The model's optimal $\lambda$ parameters minimize the predicted error. However, we will not take the optimal $\lambda$ parameters for the training error, so we take the optimal $\lambda$ parameters that minimize the validation error and predict the testing error.  
+
+```{r}
+validate_min_l2 <- logistic_results_df_l2$validate_error_l2 %>% min()
+optimal_l2 <- logistic_results_df_l2 %>% filter(validate_error_l2==validate_min_l2) %>% pull(validate_error_l2)
+model_l2 <- glmnet(x=travel_insurance_train_x, y=travel_insurance_train_y, alpha=0, lambda=optimal_l2[1], family="binomial")
+
+test_y_predicted_l2 <- predict(model_l2, travel_insurance_test_x %>% as.matrix(), type="class") %>% as.integer()
+test_error_l2 <- mean(abs(test_y_predicted_l2-travel_insurance_test_y))
+
+cat("Optimal lambda for L2 is", optimal_l2[1], "\n")
+cat("The validation error is", validate_min_l2, "\n")
+cat("The testing error is", test_error_l2, "\n")
+```
+
+##### L1 and L2 regularized logistic regression case  
+
+```{r}
+# Fix the random seed for replicability
+set.seed(0)
+
+# Potential lambdas
+lambda_min=1e-8
+lambdas <- lambda_min*(1.25^seq(100))
+
+# Potential alphas
+alphas=seq(0, 1, 0.005)
+
+compute_train_validate_error_with_lambda_alpha <- function(train_x, train_y, validate_x, validate_y, lambda, alpha) {
+  model <- glmnet(x=train_x, y=train_y, alpha=alpha, lambda=lambda, family="binomial")
+  train_y_predicted <- predict(model, train_x %>% as.matrix(), type="class") %>% as.integer()
+  validate_y_predicted <- predict(model, validate_x %>% as.matrix(), type="class") %>% as.integer()
+  
+  train_error <- mean(abs(train_y_predicted - train_y))
+  validate_error <- mean(abs(validate_y_predicted - validate_y))
+  
+  return (list(train_error=train_error, validate_error=validate_error))
+}
+
+logistic_results_df_l1_l2 <- crossing(lambdas=lambdas, alphas=alphas) %>%
+  mutate(output=pmap(.l=list(lambdas, alphas),
+                    .f=~compute_train_validate_error_with_lambda_alpha(
+                      travel_insurance_train_x,
+                      travel_insurance_train_y,
+                      travel_insurance_validate_x,
+                      travel_insurance_validate_y,
+                      .x,
+                      .y))) %>%
+  mutate(train_error=map_dbl(output, ~((.x)$train_error)),
+         validate_error=map_dbl(output, ~((.x)$validate_error))) %>%
+  select(-output)
+```
+
+In this case, we have two hyper-parameters to minimize the validation error. For simplicity, we use $\lambda$ for the x-axis,  $\alpha$ for the y-axis. Ans we use the darkness of colour to show the predicted error—the lighter, the smaller.  
+
+```{r}
+# Load packages for combining plots
+library(ggpubr)
+
+# Find the optimal parameters of training error
+train_min <- logistic_results_df_l1_l2$train_error %>% min()
+optimal_train <- logistic_results_df_l1_l2 %>% filter(train_error==train_min)
+
+# Find the optimal parameters of validation error
+validate_min <- logistic_results_df_l1_l2$validate_error %>% min()
+optimal_validate <- logistic_results_df_l1_l2 %>% filter(validate_error==validate_min)
+
+# Plot for validation error
+plot_validation_error <- ggplot() +
+  geom_point(data=logistic_results_df_l1_l2, aes(x=lambdas, y=alphas, color=validate_error)) +
+  geom_point(data=optimal_validate, aes(x=lambdas, y=alphas), color="red") +
+  scale_x_continuous(trans='log10') +
+  labs(x="Lambda", y="Alpha", color="Validation error") +
+  scale_colour_gradient(low = "white", high = "black") +
+  theme_bw()
+
+# Plot for training error
+plot_training_error <- ggplot() +
+  geom_point(data=logistic_results_df_l1_l2, aes(x=lambdas, y=alphas, color=train_error)) +
+  geom_point(data=optimal_train, aes(x=lambdas, y=alphas), color="red") +
+  scale_x_continuous(trans='log10') +
+  labs(x="Lambda", y="Alpha", color="Training error") +
+  scale_colour_gradient(low = "white", high = "black") +
+  theme_bw()
+
+# Combine two plots
+ggarrange(plot_validation_error, plot_training_error, ncol=1, nrow=2)
+```
+
+The above diagram shows optimal hyper-parameters values (red points) for the validation error and training error. Moreover, from the validation error plot, we observe multiple optimal hyper-parameters. We randomly take one of them for testing data.  
+
+```{r}
+# Fix the random seed for replicability
+set.seed(0)
+
+# Shuffle the optimal_validate
+optimal_index <- optimal_validate %>% length() %>% seq() %>% sample(1)
+optimal_lambda <- optimal_validate$lambdas[optimal_index]
+optimal_alpha <- optimal_validate$alphas[optimal_index]
+
+model_l1_l2 <- glmnet(x=travel_insurance_train_x, y=travel_insurance_train_y, alpha=optimal_alpha, lambda=optimal_lambda, family="binomial")
+test_y_predicted <- predict(model_l1_l2, travel_insurance_test_x %>% as.matrix(), type="class") %>% as.integer()
+
+cat("Optimal lambda:", optimal_lambda, "\n")
+cat("Optimal alpha:",optimal_alpha, "\n")
+cat("Validation eror:", validate_min, "\n")
+cat("Testing eror:", mean(abs(test_y_predicted-travel_insurance_test_y)))
+```
+
+By combining L1 and L2 penalties, the validation error (0.2013423) is smaller than the L2 case (0.204698). Usually, the testing error of L1&L2 can also be smaller than L2. However, it doesn't always promise that the model of L1&L2 performs better than L2 on the testing error, since an minimum validation error does not promise an minimum testing error. From our example, we observe that the testing error of L1&L2 (0.2160804) is smaller than L2 (0.218593).  
+
+### Cross validation
+
+In the previous part, we select optimal hyper-parameters by working on a single training-validation-test split. However, the size of the validation data is 298. It is so small that the performance of the model very depends on the split, and it's very unstable. To solve this problem, we introduce cross-validation to select hyper-parameters.  
+
+The cross-validation split data into several folds and will select each fold as the validation data for different times. Each time, potential hyper-parameters are applied to them to compute the validation error. Finally, we will take the average validation error as the validation error of that hyper-parameter. We can select a more stable optimal hyper-parameter for testing by this approach.  
+
+For the sake of simplicity, we take L2 regularized logistic regression in the following trials, so the alpha is fixed to 0.  
+
+```{r}
+# Split data into testing data and training/validation data.
+
+# Fix the random seed for replicability.
+set.seed(0)
+
+num_total <- travel_insurance %>% nrow()
+num_test <- ceiling(0.25*num_total)
+
+travel_insurance <- travel_insurance %>% sample_n(size=nrow(.))
+test_inds <- sample(seq(num_total-num_test+1), num_test)
+
+travel_insurance_test <- travel_insurance %>% filter(row_number() %in% test_inds)
+travel_insurance_train_validate <- travel_insurance %>% filter(!row_number() %in% test_inds)
+```
+
+```{r}
+# Function to split training and validation data by fold.
+train_validation_by_fold <- function (train_validation_data, fold, num_folds) {
+  num_train_validation <- train_validation_data %>% nrow()
+  num_per_fold <- ceiling(num_train_validation/num_folds) 
+  
+  fold_start <- (fold-1) *num_per_fold+1
+  fold_end <- min(fold*num_per_fold, num_train_validation)
+  fold_indicies <- seq(fold_start, fold_end)
+  
+  validation_data <- train_validation_data %>% filter (row_number() %in%fold_indicies)
+  train_data <- train_validation_data %>% filter(!row_number() %in%fold_indicies)
+  return(list(validation=validation_data, train=train_data))
+}
+```
+
+```{r}
+# Function to compute validation error by fold.
+logistic_validation_error_by_fold <- function(train_validation_data, fold, num_folds, lambda) {
+  data_split <- train_validation_by_fold(train_validation_data, fold, num_folds)
+  validation_data <- data_split$validation
+  train_data <- data_split$train
+  
+  train_data_x <- train_data %>% select(-TravelInsurance)
+  train_data_y <- train_data %>% pull(TravelInsurance)
+  
+  validation_data_x <- validation_data %>% select(-TravelInsurance)
+  validation_data_y <- validation_data %>% pull(TravelInsurance)
+  
+  # We fix alpha to 0 here, cause we take a L2 penalty.
+  model <- glmnet(x=train_data_x %>% as.matrix(), y=train_data_y, family="binomial", lambda=lambda, alpha=0)
+  validation_data_predicted_y <- predict(model, validation_data_x %>% as.matrix(), type="class") %>% as.integer()
+  
+  validation_error <- mean(abs(validation_data_y-validation_data_predicted_y))
+}
+```
+
+```{r}
+# Set 10 folds.
+num_folds <- 10
+
+# Potential lambdas
+lambda_min=1e-8
+lambdas <- lambda_min*(1.25^seq(100))
+
+# Get the validation error by cross-validation.
+cross_validation_results <- crossing(lambdas=lambdas, fold=seq(num_folds)) %>%
+  mutate(validation_error=map2_dbl(lambdas, fold, .f=~logistic_validation_error_by_fold(travel_insurance_train_validate, .y, num_folds, .x))) %>%
+  group_by(lambdas) %>%
+  summarise(validation_error=mean(validation_error))
+
+# Find the minimal validation error.
+min_validation_error <- cross_validation_results %>% pull(validation_error) %>% min()
+# Get the optimal lambda
+optimal_lambda <- cross_validation_results %>%
+  filter(validation_error==min_validation_error) %>% pull(lambdas)
+
+# Plot validation error as the lambda changes
+ggplot(data=cross_validation_results, aes(x=lambdas)) +
+  geom_point(aes(y=validation_error), colour="red") +
+  geom_hline(yintercept=min_validation_error, colour="blue") +
+  scale_x_continuous(trans='log10') +
+  theme_bw()
+```
+
+Since we get the optimal hyper-parameter $\lambda$, we apply it to the model and explore the testing error.
+
+```{r}
+travel_insurance_train_validate_x <- travel_insurance_train_validate %>% select(-TravelInsurance)
+travel_insurance_train_validate_y <- travel_insurance_train_validate %>% pull(TravelInsurance)
+
+optimised_logistic_model <- glmnet(travel_insurance_train_validate_x %>% as.matrix(), y=travel_insurance_train_validate_y, lambda=optimal_lambda %>% sample(1), alpha=0, family="binomial")
+
+travel_insurance_test_x <- travel_insurance_test %>% select(-TravelInsurance)
+travel_insurance_test_y <- travel_insurance_test %>% pull(TravelInsurance)
+
+travel_insurance_test_y_predicted <- predict(optimised_logistic_model, travel_insurance_test_x %>% as.matrix(), type="class") %>% as.integer()
+test_error <- mean(abs(travel_insurance_test_y_predicted-travel_insurance_test_y))
+
+cat("Test error:", test_error)
+```
+
+```{r}
+# Function to the get optimal lambda
+get_optimal_lambda_by_cv <- function(train_validation_data, num_folds, lambdas) {
+  folds <- seq(num_folds)
+  cross_validation_results <- crossing(lambdas=lambdas, fold=seq(num_folds)) %>%
+    mutate(validation_error=map2_dbl(lambdas, fold, .f=~logistic_validation_error_by_fold(travel_insurance_train_validate, .y, num_folds, .x))) %>%
+    group_by(lambdas) %>%
+    summarise(validation_error=mean(validation_error))
+  
+  min_validation_error <- cross_validation_results %>% pull(validation_error) %>% min()
+  optimal_lambda <- cross_validation_results %>%
+    filter(validation_error==min_validation_error) %>% pull(lambdas)
+  
+  # Randomly pick one optimal lambda
+  return(optimal_lambda %>% sample(1))
+}
+```
+
+Except for validation data, we can also apply cross-validation on testing data to get stable performance.  
+
+```{r}
+# Function to split testing and training/validation data by fold.
+train_test_by_fold <- function(data, fold, num_folds) {
+  num_total <- data %>% nrow()
+  num_per_fold <- ceiling(num_total/num_folds)
+  
+  fold_start <- (fold-1) *num_per_fold+1
+  fold_end <- min(fold*num_per_fold, num_total)
+  fold_indicies <- seq(fold_start, fold_end)
+  
+  test_data <- data %>% filter (row_number() %in%fold_indicies)
+  train_validation_data <- data %>% filter(!row_number() %in%fold_indicies)
+  return(list(test=test_data, train_validation=train_validation_data))
+}
+```
+
+```{r}
+# Function to compute the testing error.
+logistic_test_error_by_fold <- function(data, fold, num_folds, lambdas) {
+  data_split <- train_test_by_fold(data, fold, num_folds)
+  test_data <- data_split$test
+  train_validation_data <- data_split$train_validation
+  
+  optimal_lambda <- get_optimal_lambda_by_cv(train_validation_data, num_folds, lambdas)
+  
+  train_validation_data_x <- train_validation_data %>% select(-TravelInsurance)
+  train_validation_data_y <- train_validation_data %>% pull(TravelInsurance)
+  
+  # Train model by optimal hyper-parameter
+  optimised_logistic_model <- glmnet(x=train_validation_data_x %>% as.matrix(), y=train_validation_data_y, lambda=optimal_lambda, alpha=0, family="binomial")
+  
+  test_data_x <- test_data %>% select(-TravelInsurance)
+  test_data_y <- test_data %>% pull(TravelInsurance)
+  
+  test_data_y_predicted <- predict(optimised_logistic_model, test_data_x %>% as.matrix(), type="class") %>% as.integer()
+  test_error <- mean(abs(test_data_y_predicted-test_data_y))
+  
+  return(test_error)
+}
+```
+
+```{r}
+# Compute the testing error by cross-validation
+logistic_test_error <- function(data, num_folds_test, num_folds, lambdas) {
+  data <- data %>% sample_n(nrow(.))
+  folds <- seq(num_folds_test)
+  
+  mean_test_error <- data.frame(fold=folds) %>%
+    mutate(test_error=map_dbl(fold, ~logistic_test_error_by_fold(data, .x, num_folds, lambdas))) %>%
+    pull(test_error) %>%
+    mean()
+  
+  return(mean_test_error)
+}
+```
+
+```{r}
+# Fix the random seed for replicability
+set.seed(0)
+
+# Potential lambdas
+lambda_min=1e-8
+lambdas <- lambda_min*(1.25^seq(100))
+
+test_error <- logistic_test_error(travel_insurance, num_folds_test=8, num_folds=5, lambdas=lambdas)
+cat("Testing error by cross-validation", test_error)
+```
+
+Finally, we get the testing error (0.1459672) and is much smaller than the previous ones. However, the cross-validation can be a time-consuming approach, especially when there is a big range of potential values and multiple hyper-parameters.  
+
+### Reference  
+
+(1). Tejashvi. Travel Insurance Prediction Data | Kaggle [online]. Public Domain, 2021. [viewed on 03/01/22]. Available from: https://www.kaggle.com/tejashvi14/travel-insurance-prediction-data/metadata  
+(2). Kaggle. Kaggle: Your Home for Data Science [online]. Kaggle Inc, 2022. [viewed on 03/01/22]. Available from: https://www.kaggle.com/  
